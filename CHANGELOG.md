@@ -1,8 +1,28 @@
 # Changelog
 
-## 0.3.2 (2026-09-16)
+## 0.3.3 (2026-09-16)
 
 First release published to PyPI, via GitHub OIDC trusted publishing.
+
+### Fixed
+
+- **Publish payload**: the artifact handed to the PyPI upload action now carries
+  only the wheel and the sdist. It previously included `SHA256SUMS` and every
+  `.sig`/`.pem` sibling, and the action rejects any file that is not a
+  distribution (`InvalidDistribution: Unknown distribution format:
+  'SHA256SUMS'`), which aborted the upload for 0.3.2. A step in the publish job
+  now asserts the payload is distributions only, so a stray file fails with a
+  named error instead of mid-exchange with PyPI
+
+### Added
+
+- **PyPI publication**: the distributions are uploaded with build attestations
+  attached, so the provenance of the published files can be checked on the
+  project page
+
+## 0.3.2 (2026-09-16)
+
+Tagged and released on GitHub; not published to PyPI.
 
 ### Fixed
 
@@ -10,15 +30,13 @@ First release published to PyPI, via GitHub OIDC trusted publishing.
   certificate siblings of the distributions, which made `sha256sum -c` report
   `FAILED` for files it had just verified
 
-### Added
-
-- **PyPI publication**: the distributions are uploaded by
-  `pypa/gh-action-pypi-publish` with build attestations attached, so the
-  provenance of the published files can be checked on the project page
-
 ### Notes
 
-- 0.3.1 was tagged on GitHub but never published to PyPI; 0.3.2 supersedes it.
+- The PyPI publish job failed on this tag because the upload payload carried
+  non-distribution files. The fix landed in 0.3.3, which supersedes it. The
+  version was not re-cut: 0.3.2 artifacts were already signed into the
+  transparency log, and publishing a second, different artifact set under the
+  same version number is the defect this project exists to detect
 
 ## 0.3.1 (2026-09-16)
 
@@ -104,7 +122,8 @@ Initial public release of the WitnessOS standalone open-source verifier.
 
 ---
 
-[Unreleased]: https://github.com/narko4u/witnessos-verifier/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/narko4u/witnessos-verifier/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/narko4u/witnessos-verifier/releases/tag/v0.3.3
 [0.3.2]: https://github.com/narko4u/witnessos-verifier/releases/tag/v0.3.2
 [0.3.1]: https://github.com/narko4u/witnessos-verifier/releases/tag/v0.3.1
 [0.3.0]: https://github.com/narko4u/witnessos-verifier/releases/tag/v0.3.0

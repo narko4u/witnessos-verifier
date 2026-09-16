@@ -124,10 +124,16 @@ jobs:
           sha256sum sbom.cdx.json sbom.cdx.json.sig sbom.cdx.json.pem >> dist/SHA256SUMS
 
       - name: Keep the built distributions for publishing
+        # Distributions only. The PyPI upload action rejects any file in its
+        # packages-dir that is not a wheel or sdist, so shipping the checksums
+        # and signature files inside this artifact fails the publish outright:
+        #   InvalidDistribution: Unknown distribution format: 'SHA256SUMS'
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/*
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
           if-no-files-found: error
 
       - name: Upload release assets
@@ -161,6 +167,31 @@ jobs:
         with:
           name: dist
           path: dist
+
+      - name: Assert the upload payload is only distributions
+        # Fail loudly rather than let the publisher discover a stray file. An
+        # unsupported filename in dist/ aborts the whole upload, so this
+        # assertion names the offending file before the exchange with PyPI.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/*)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No distributions were found in dist/."
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            case "$(basename "$f")" in
+              *.whl|*.tar.gz) ;;
+              *)
+                echo "::error::Not a distribution: $(basename "$f")"
+                echo "::error::PyPI accepts only wheels and sdists in the upload payload."
+                exit 1
+                ;;
+            esac
+          done
+          echo "payload is distributions only:"
+          ls -1 dist
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
