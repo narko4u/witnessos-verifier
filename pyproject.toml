@@ -1,6 +1,6 @@
 [project]
 name = "witnessos-verifier"
-version = "0.3.0"
+version = "0.3.1"
 description = "Standalone open-source verifier for WitnessOS™ evidence bundles"
 readme = "README.md"
 license-files = ["LICENSE"]
@@ -41,6 +41,12 @@ s3 = [
 
 [project.scripts]
 witnessos-verifier = "witnessos_verifier.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/narko4u/witnessos-verifier"
+Repository = "https://github.com/narko4u/witnessos-verifier"
+Issues = "https://github.com/narko4u/witnessos-verifier/issues"
+Changelog = "https://github.com/narko4u/witnessos-verifier/releases"
 
 [build-system]
 requires = ["hatchling"]

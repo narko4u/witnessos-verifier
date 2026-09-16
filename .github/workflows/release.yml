@@ -68,6 +68,32 @@ jobs:
           python -m pip install --upgrade pip build
           python -m build --outdir dist
 
+      - name: Assert the built version matches the tag
+        # PyPI never allows a filename to be reused, so publishing a
+        # distribution whose version does not match its tag permanently burns
+        # that version number on a mismatched artifact. Fail before anything is
+        # signed, released, or uploaded.
+        run: |
+          set -euo pipefail
+          tag="${{ steps.ref.outputs.tag }}"
+          expected="${tag#v}"
+          esc="${expected//./\\.}"
+          shopt -s nullglob
+          files=(dist/*)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::Build produced no distributions in dist/."
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            base="$(basename "$f")"
+            if ! grep -Eq "(^|[-_])${esc}([-_.]|$)" <<< "$base"; then
+              echo "::error::'$base' does not carry tag version '$expected' (tag '$tag')."
+              echo "::error::Bump the version in pyproject.toml to match the tag before tagging."
+              exit 1
+            fi
+          done
+          echo "version/tag check passed: $expected"
+
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@v0
         with:
