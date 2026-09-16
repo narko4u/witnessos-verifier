@@ -116,9 +116,12 @@ jobs:
 
       - name: Create checksums
         run: |
+          # sha256sum -- * already covers the distributions AND their .sig/.pem
+          # siblings, so only the repo-root SBOM artifacts are appended here.
+          # Prefixing duplicate entries with dist/ made 'sha256sum -c' report
+          # FAILED for files it had just verified.
           cd dist && sha256sum -- * > SHA256SUMS && cd ..
-          # also include the SBOM and signature files in the checksum file
-          sha256sum sbom.cdx.json sbom.cdx.json.sig sbom.cdx.json.pem dist/*.sig dist/*.pem >> dist/SHA256SUMS 2>/dev/null || true
+          sha256sum sbom.cdx.json sbom.cdx.json.sig sbom.cdx.json.pem >> dist/SHA256SUMS
 
       - name: Keep the built distributions for publishing
         uses: actions/upload-artifact@v4
