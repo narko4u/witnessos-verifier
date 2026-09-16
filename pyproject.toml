@@ -1,6 +1,10 @@
 [project]
 name = "witnessos-verifier"
-version = "0.3.3"
+# The version is single-sourced from the package source (see
+# [tool.hatch.version]) so the CLI's reported version and the distribution
+# filename can never disagree again. They drifted once: the wheel was named
+# 0.3.3 while 'witnessos-verifier --version' still printed 0.2.0.
+dynamic = ["version"]
 description = "Standalone open-source verifier for WitnessOS™ evidence bundles"
 readme = "README.md"
 license-files = ["LICENSE"]
@@ -51,6 +55,12 @@ Changelog = "https://github.com/narko4u/witnessos-verifier/releases"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+# Single source of truth for the project version. Bump it here and the
+# distribution filename, the wheel metadata and 'witnessos-verifier --version'
+# all move together.
+path = "src/witnessos_verifier/__init__.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

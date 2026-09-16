@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.4 (2026-09-16)
+
+### Fixed
+
+- **`--version` reported the wrong version.** The CLI read `__version__` from the
+  package source while the distribution filename came from `pyproject.toml`, and
+  the two literals drifted: 0.3.0, 0.3.1, 0.3.2 and 0.3.3 all shipped a build
+  whose own `witnessos-verifier --version` printed `0.2.0`. The version is now
+  single-sourced from `src/witnessos_verifier/__init__.py` through
+  `[tool.hatch.version]`, and the release workflow asserts the runtime version
+  against the tag before anything is signed or uploaded
+
 ## 0.3.3 (2026-09-16)
 
 First release published to PyPI, via GitHub OIDC trusted publishing.
@@ -122,7 +134,8 @@ Initial public release of the WitnessOS standalone open-source verifier.
 
 ---
 
-[Unreleased]: https://github.com/narko4u/witnessos-verifier/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/narko4u/witnessos-verifier/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/narko4u/witnessos-verifier/releases/tag/v0.3.4
 [0.3.3]: https://github.com/narko4u/witnessos-verifier/releases/tag/v0.3.3
 [0.3.2]: https://github.com/narko4u/witnessos-verifier/releases/tag/v0.3.2
 [0.3.1]: https://github.com/narko4u/witnessos-verifier/releases/tag/v0.3.1
