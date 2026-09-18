@@ -14,7 +14,7 @@ jobs:
     name: Workflows lint (actionlint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # Pinned + checksum-verified through the Go module proxy (sum.golang.org).
       # Catches the class of bug that silently killed release runs on 20 Aug 2026:
       # an invalid expression (${{ GITHUB_REF_NAME }}) makes GitHub reject the whole
@@ -29,7 +29,7 @@ jobs:
   dco:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Verify all commits carry Signed-off-by (DCO)
@@ -57,8 +57,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Create venv and install package (matches local dev layout)

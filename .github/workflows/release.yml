@@ -53,13 +53,13 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ steps.ref.outputs.tag }}
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -147,7 +147,7 @@ jobs:
         # packages-dir that is not a wheel or sdist, so shipping the checksums
         # and signature files inside this artifact fails the publish outright:
         #   InvalidDistribution: Unknown distribution format: 'SHA256SUMS'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dist
           path: |
@@ -156,7 +156,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.ref.outputs.tag }}
           files: |
@@ -182,7 +182,7 @@ jobs:
       contents: read
     steps:
       - name: Fetch the distributions built by the release job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: dist
           path: dist
