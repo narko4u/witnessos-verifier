@@ -158,12 +158,24 @@ signature of an asset:
 
 ```sh
 # install cosign: https://docs.sigstore.dev/cosign/installation/
+TAG=$(gh release view --repo narko4u/witnessos-verifier --json tagName -q .tagName)  # e.g. v0.3.4
+V="${TAG#v}"   # 0.3.4
+ART="witnessos_verifier-${V}-py3-none-any.whl"
+
 cosign verify-blob \
   --certificate-identity-regexp "^https://github\.com/narko4u/witnessos-verifier/\.github/workflows/release\.yml@refs/(tags/v[0-9]+\.[0-9]+\.[0-9]+|heads/main)$" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  --signature witnessos_verifier-0.2.0-py3-none-any.whl.sig \
-  --certificate witnessos_verifier-0.2.0-py3-none-any.whl.pem \
-  witnessos_verifier-0.2.0-py3-none-any.whl
+  --signature "${ART}.sig" \
+  --certificate "${ART}.pem" \
+  "${ART}"
+```
+
+The `.pem` asset is stored **base64-wrapped**. `cosign` reads it as it comes out of
+the release; a tool that wants a plain PEM (for example `openssl x509`) needs it
+decoded first:
+
+```sh
+base64 -d "${ART}.pem" > cert.pem
 ```
 
 `--certificate-identity` compares against one exact string; the `v*` used in
