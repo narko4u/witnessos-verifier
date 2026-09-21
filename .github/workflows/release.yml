@@ -147,7 +147,7 @@ jobs:
         # packages-dir that is not a wheel or sdist, so shipping the checksums
         # and signature files inside this artifact fails the publish outright:
         #   InvalidDistribution: Unknown distribution format: 'SHA256SUMS'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: |
