@@ -224,6 +224,28 @@ vulnerabilities that do not affect the project, and a
 [threat assessment](THREAT-ASSESSMENT.md) covering the attack surface and
 mitigations for each release.
 
+---
+
+## Acknowledgements
+
+The verifier stands on these independent projects:
+
+- **[PyNaCl](https://pynacl.readthedocs.io/)** - Ed25519 signature verification,
+  binding to [libsodium](https://doc.libsodium.org/).
+- **[cryptography](https://cryptography.io/)** - X.509 certificate parsing.
+- **[asn1crypto](https://github.com/wbond/asn1crypto)** - ASN.1 and CMS structure parsing.
+- **[Click](https://click.palletsprojects.com/)** - command-line interface.
+- **[OpenSSL](https://www.openssl.org/)** 3 - RFC 3161 timestamp signature and
+  certificate-path verification, invoked as an external executable.
+- **[boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)** -
+  optional, for the S3 storage adapters only; not used for E4 verification.
+
+Each is an independent project with its own maintainers and release cycle,
+credited here as a dependency. None of them has reviewed, endorsed or certified
+this verifier.
+
+---
+
 ## License
 
 Apache 2.0 - see [LICENSE](LICENSE)
