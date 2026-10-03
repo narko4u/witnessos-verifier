@@ -1,0 +1,35 @@
+========================================================================
+WITNESSOS POST-QUANTUM HYBRID RECEIPT
+========================================================================
+proof-of-receipt issued : 2026-10-03T23:15:03+00:00
+verifier                : engine absent - independent
+batch                   : wos_batch_5_9
+events                  : 5 (global_seq 5..9)
+suite                   : ed25519+ml-dsa-65
+
+[ 1 ] HYBRID SIGNATURE
+      primary  ed25519:7d899449901734a21bb7f78e80ccfe56e8fbc6ea9ae2...
+      counter  ml-dsa-65:936466cd2c233423548dfe29ec8f88b6fa5940b7cf...
+      verdict  VALID   halves={'primary': True, 'counter': True}
+
+[ 2 ] MERKLE ANCHOR
+      declared sha256:d9608f3b7871cd5d122fb584c4d91d5241eb215c13143ce4fc4e4fe69f550019
+      rebuilt  d9608f3b7871cd5d122fb584c4d91d5241eb215c13143ce4fc4e4fe69f550019
+      verdict  VALID
+
+[ 3 ] EXTERNAL TIMESTAMP RECEIPT (RFC 3161)
+      authority   FreeTSA  https://freetsa.org/tsr
+      token       4635 bytes
+      imprint     SHA256 of the 32 binary root bytes
+      genTime     2026-10-03T20:36:33+00:00
+      serial      148364346
+      signature   True
+      imprint ok  True
+      verdict     VALID
+
+[ 4 ] ENGINE-SIDE VERDICT (for comparison)
+      signature_valid=True composite=True
+      anchor_status  =pending
+      engine accepted the token; this verifier does too.
+
+RESULT: signatures=OK anchor=OK timestamp=OK
