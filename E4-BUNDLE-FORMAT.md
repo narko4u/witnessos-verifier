@@ -57,6 +57,9 @@ Required paths are `events/*.json`, `keys.json`, `case_manifest.json`,
 `batch_manifest.json`, `merkle_proof.json`, exactly one timestamp response under
 `timestamp/`, `worm/batch_store.json`, and `worm/retention.json`.
 
+0. A manifest declaring a `signature_suite` is a composite manifest and takes the
+   rules in **Composite signature suites** below. A manifest without that field is a
+   version 1 manifest and is verified exactly as it always was, byte for byte.
 1. Sort events by integer `seq`. Require gapless sequence, unique event IDs, a
    consistent case ID, and the exact ordered event IDs and sequence bounds in the
    signed batch manifest. Verify each event's Ed25519 signature over the canonical
@@ -199,3 +202,87 @@ integration test uses the **real Gmail FreeTSA token** and a clearly labelled
 cryptographic integration test, not proof that the fixture is stored in production
 WORM. The production-retention acceptance criterion remains unfulfilled until an
 independent custodian issues a real receipt in the format above.
+
+## Composite signature suites
+
+A batch manifest may be signed with more than one scheme at once, so that a record's
+durability does not rest on any single scheme surviving. This is a versioned change to
+the manifest only. The tree, the timestamp, the retention receipt and the operator
+policy are untouched.
+
+### Why this is a revision and not an extension
+
+A different producer convention needs a versioned protocol change, as stated at
+step 3. The version 1 manifest carries `signing_key_id` and a bare base64 `signature`
+with no algorithm label at all, so there is nothing to parse and no field in which to
+state a suite. Adding one is a producer convention change.
+
+### The version marker is one field
+
+The marker is the presence of `signature_suite`.
+
+- **Absent** means a version 1 manifest. Ed25519 over `signature`. Verified exactly as
+  before, byte for byte.
+- **Present** means a composite manifest. Every rule here applies.
+
+This deliberately does not use a `schema` string. A schema string plus a separate
+suite field would give two sources of truth. A producer could declare the new
+version while omitting the suite. One field, one meaning.
+
+### Composite manifest fields
+
+A composite manifest is a version 1 manifest plus three fields:
+
+```json
+{
+  "signature_suite": "ed25519+ml-dsa-65",
+  "countersigner_key_id": "THE_COUNTER_KEY_ID",
+  "countersignature": "BASE64_COUNTER_SIGNATURE"
+}
+```
+
+- `signature_suite` is a lowercase, plus-separated list of scheme labels. It must name at least two schemes. A one-scheme suite is a single-scheme record written the
+  long way.
+- `countersigner_key_id` must resolve in `keys.json` and must differ from
+  `signing_key_id`.
+- Each half is verified under the algorithm the key itself declares in `keys.json`.
+
+### What the signature covers
+
+`BatchManifest.signed_data` for a version 1 manifest is exactly the nine fields it has
+always been and nothing else. For a composite manifest it additionally covers
+`signature_suite` and `countersigner_key_id`. It still excludes `signature` and
+`countersignature`.
+
+The suite declaration has to be inside the signed bytes. If it sat beside them, the
+counter half and the declaration could be removed together and the remaining classical
+signature would still verify over content that had never changed, producing a record
+that looks like a version 1 manifest and is accepted as one. Covering the declaration
+makes that removal detectable.
+
+Because the two fields are added only when present, a version 1 manifest's signed bytes
+are unchanged.
+
+### The refusals
+
+Each of these is a failed verification with a named reason. None is a warning. None is a traceback through the command line.
+
+1. `signature_suite` present and `countersignature` absent.
+2. `countersignature` present and `signature_suite` absent.
+3. `signature_suite` names a scheme this build cannot perform. A suite naming fewer than two schemes is
+   refused on the same ground.
+4. The suite's label set does not exactly equal the algorithms the two named keys
+   declare in `keys.json`.
+5. `signature_suite` present and `countersigner_key_id` absent.
+6. Either half fails to verify.
+
+Refusal 4 closes the swap, because a signature from a different key carries a different
+declared algorithm and the sets stop matching. Refusal 3 is the one that matters most in
+practice: a suite this build cannot perform is an unverifiable record, not a weaker one.
+Reading it as the half we can perform is the downgrade this format refuses.
+
+### The event dimension already carries this
+
+`binding.verify_event_signatures` reads `signed.get('algorithm', 'Ed25519')`, so an
+event can declare a scheme today and needs no change. This revision touches the manifest
+only.
