@@ -89,6 +89,32 @@ class CertChainValidator:
         return result
 
 
+def wrap_timestamp_resp(token_bytes: bytes) -> bytes:
+    """Return a granted TimeStampResp carrying the token, for `openssl ts -verify`.
+
+    Producers differ on which shape they hand over. Some return the full TimeStampResp,
+    others the bare TimeStampToken. The engine normalises to the bare token at storage so
+    its stored blob is trust-path ready, which means a reader has to put the envelope back
+    before OpenSSL will look at it. This is the inverse of that normalisation.
+
+    A blob that is already a TimeStampResp is returned untouched, so both shapes verify.
+    """
+    from asn1crypto import tsp
+
+    try:
+        resp = tsp.TimeStampResp.load(token_bytes, strict=True)
+        # asn1crypto parses lazily, so load() succeeds on a bare token and the fault
+        # only surfaces when the nested structure is touched. Force it, or this try
+        # never fires and a bare token is handed to OpenSSL unwrapped.
+        resp['status']['status'].native
+        return token_bytes
+    except (ValueError, TypeError, KeyError):
+        return tsp.TimeStampResp({
+            'status': {'status': 'granted'},
+            'time_stamp_token': token_bytes,
+        }).dump()
+
+
 def verify_timestamp_response(token_bytes, expected_hash, policy, verification_time, certificates):
     """Verify CMS attributes, ESS signer binding, signature, imprint and path.
 
@@ -97,7 +123,7 @@ def verify_timestamp_response(token_bytes, expected_hash, policy, verification_t
     """
     with tempfile.TemporaryDirectory(prefix='witnessos-ts-') as directory:
         d = Path(directory)
-        (d/'token.tsr').write_bytes(token_bytes)
+        (d/'token.tsr').write_bytes(wrap_timestamp_resp(token_bytes))
         (d/'roots.pem').write_bytes(b''.join(Path(p).read_bytes()+b'\n' for p in policy.trusted_roots))
         (d/'empty').mkdir()
         args = ['ts', '-verify', '-in', str(d/'token.tsr'), '-digest', expected_hash.hex(),
