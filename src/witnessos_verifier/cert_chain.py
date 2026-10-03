@@ -99,7 +99,7 @@ def wrap_timestamp_resp(token_bytes: bytes) -> bytes:
 
     A blob that is already a TimeStampResp is returned untouched, so both shapes verify.
     """
-    from asn1crypto import tsp
+    from asn1crypto import cms, tsp
 
     try:
         resp = tsp.TimeStampResp.load(token_bytes, strict=True)
@@ -109,9 +109,12 @@ def wrap_timestamp_resp(token_bytes: bytes) -> bytes:
         resp['status']['status'].native
         return token_bytes
     except (ValueError, TypeError, KeyError):
+        # The field expects a ContentInfo structure, not raw bytes: asn1crypto dereferences
+        # it, so bytes reach a .keys() call and raise.
+        token = cms.ContentInfo.load(token_bytes, strict=True)
         return tsp.TimeStampResp({
             'status': {'status': 'granted'},
-            'time_stamp_token': token_bytes,
+            'time_stamp_token': token,
         }).dump()
 
 
