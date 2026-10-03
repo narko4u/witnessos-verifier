@@ -399,7 +399,6 @@ wheels = [
 
 [[package]]
 name = "witnessos-verifier"
-version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "asn1crypto" },
@@ -425,10 +424,10 @@ requires-dist = [
     { name = "asn1crypto", specifier = ">=1.5.1" },
     { name = "boto3", marker = "extra == 's3'", specifier = ">=1.35.0" },
     { name = "click", specifier = ">=8.0" },
-    { name = "cryptography", specifier = ">=43.0" },
-    { name = "cryptography", marker = "extra == 'trust'", specifier = ">=43.0" },
+    { name = "cryptography", specifier = ">=50.0" },
+    { name = "cryptography", marker = "extra == 'trust'", specifier = ">=50.0" },
     { name = "pynacl", specifier = ">=1.5.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
 ]
-provides-extras = ["dev", "trust", "s3"]
+provides-extras = ["dev", "s3", "trust"]
