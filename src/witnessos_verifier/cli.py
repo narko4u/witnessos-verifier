@@ -108,5 +108,77 @@ def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bo
     sys.exit(0 if result.valid else 1)
 
 
+@main.command(name="verify-engine")
+@click.argument("record_dir", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option("--keys", "keys_path", type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              help="Path to keys.json. Defaults to <record_dir>/keys.json")
+@click.option("--json", "output_json", is_flag=True, help="Output the verdict as JSON")
+def verify_engine_cmd(record_dir: Path, keys_path, output_json: bool):
+    """Verify a record produced by the WitnessOS engine, with the engine ABSENT.
+
+    RECORD_DIR holds manifest.json, keys.json and leaves.json. Nothing here calls the
+    engine or any service. The signatures are checked against the public keys carried in
+    the record, offline, so a counterparty can verify a receipt without trusting us.
+
+    Exit code 0 when the signatures verify and the anchor holds, 1 otherwise.
+    """
+    import json as _json
+
+    from .engine_native import verify_engine_anchor, verify_engine_manifest
+
+    manifest_path = record_dir / "manifest.json"
+    keys_file = keys_path or (record_dir / "keys.json")
+    leaves_file = record_dir / "leaves.json"
+    for required in (manifest_path, keys_file):
+        if not required.exists():
+            click.echo(f"Missing {required}", err=True)
+            sys.exit(1)
+
+    manifest = _json.loads(manifest_path.read_text())
+    keys = {k["key_id"]: k for k in _json.loads(keys_file.read_text())}
+    leaves = []
+    if leaves_file.exists():
+        leaves = [x["global_event_hash"] for x in _json.loads(leaves_file.read_text()).get("leaves", [])]
+
+    try:
+        import witnessos                      # noqa: F401
+        independent = False
+    except ImportError:
+        independent = True
+
+    sig = verify_engine_manifest(manifest, keys)
+    anchor = verify_engine_anchor(manifest, leaves) if leaves else {"valid": None, "errors": []}
+    ok = bool(sig["valid"]) and anchor.get("valid") is not False
+
+    if output_json:
+        click.echo(_json.dumps({
+            "batch_id": manifest.get("batch_id"), "suite": manifest.get("sig_algorithm"),
+            "engine_absent": independent, "signature": sig, "anchor": anchor,
+        }, indent=2, default=str))
+        sys.exit(0 if ok else 1)
+
+    click.echo("WitnessOS engine record")
+    click.echo(f"  batch          {manifest.get('batch_id')}")
+    click.echo(f"  suite          {manifest.get('sig_algorithm')}")
+    click.echo(f"  primary key    {manifest.get('signer_key_id')}")
+    click.echo(f"  counter key    {manifest.get('countersigner_key_id')}")
+    click.echo(f"  leaves         {len(leaves)}")
+    click.echo()
+    click.echo(f"  signature      {'VALID' if sig['valid'] else 'INVALID'}"
+               + (f"   halves={sig.get('halves')}" if sig.get("halves") else ""))
+    for err in sig.get("errors", []):
+        click.echo(f"    {err}", err=True)
+    if anchor.get("valid") is not None:
+        click.echo(f"  merkle anchor  {'VALID' if anchor['valid'] else 'INVALID'}")
+        for err in anchor.get("errors", []):
+            click.echo(f"    {err}", err=True)
+    click.echo()
+    click.echo(f"  engine absent  {independent}"
+               + ("" if independent else "  (installed here, so NOT an independent check)"))
+    click.echo()
+    click.echo(f"RESULT: {'VERIFIED' if ok else 'NOT VERIFIED'}")
+    sys.exit(0 if ok else 1)
+
+
 if __name__ == "__main__":
     main()

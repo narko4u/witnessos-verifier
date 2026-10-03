@@ -100,7 +100,7 @@ def verify_timestamp(
     and future-time check. A configured nonce is compared before acceptance.
     """
     from datetime import datetime, timezone, timedelta
-    from asn1crypto import tsp, x509 as asn1_x509
+    from asn1crypto import cms, tsp, x509 as asn1_x509
     from cryptography.hazmat.primitives import serialization
     from .cert_chain import CertChainValidator, pem_certificates, verify_timestamp_response
     from .der import validate_der_input
@@ -114,12 +114,21 @@ def verify_timestamp(
         issues = validate_der_input(raw, strict=True)
         if issues:
             raise ValueError('; '.join(issues))
-        response = tsp.TimeStampResp.load(raw, strict=True)
-        if response.dump(force=True) != raw:
-            raise ValueError('Non-canonical DER timestamp response')
-        if response['status']['status'].native not in ('granted', 'granted_with_mods'):
-            raise ValueError('Timestamp response was not granted')
-        token = response['time_stamp_token']
+        # RFC 3161 defines two shapes and authorities differ on which they return.
+        # Most wrap the token in a TimeStampResp. FreeTSA returns the bare
+        # TimeStampToken, which is a CMS ContentInfo and is self-contained, so it is
+        # accepted directly rather than reported as a malformed response.
+        try:
+            response = tsp.TimeStampResp.load(raw, strict=True)
+            if response.dump(force=True) != raw:
+                raise ValueError('Non-canonical DER timestamp response')
+            if response['status']['status'].native not in ('granted', 'granted_with_mods'):
+                raise ValueError('Timestamp response was not granted')
+            token = response['time_stamp_token']
+        except (ValueError, TypeError):
+            token = cms.ContentInfo.load(raw, strict=True)
+            if token['content_type'].native != 'signed_data':
+                raise ValueError('Not a TimeStampResp and not a CMS SignedData token')
         if token['content_type'].native != 'signed_data':
             raise ValueError('Timestamp token is not CMS SignedData')
         sd = token['content']
