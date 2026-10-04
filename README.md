@@ -4,7 +4,7 @@
 
 > **E4 verification implemented with explicit external trust.** Real RFC 3161 signatures and independent custodian receipts are verified. The existing fixtures still lack production retention receipts; Stripe also has a root mismatch. See [E4-BUNDLE-FORMAT.md](E4-BUNDLE-FORMAT.md) and [E4-IMPLEMENTATION-REPORT.md](E4-IMPLEMENTATION-REPORT.md).
 
-Standalone verifier for WitnessOS evidence bundles. It checks event and manifest Ed25519 signatures, canonical event chains, sequence bounds, event membership, and binding to the signed batch root. Bundled keys prove consistency with those keys; authenticate their identity independently.
+Standalone verifier for WitnessOS evidence. It checks event and manifest signatures in any of Ed25519, ML-DSA-65 or a hybrid suite declaring both, plus canonical event chains, sequence bounds, event membership and binding to the signed batch root. It also verifies engine-native records directly, so a counterparty can check one with the engine absent. Bundled keys prove consistency with those keys; authenticate their identity independently.
 
 | Grade | Required evidence |
 |---|---|
