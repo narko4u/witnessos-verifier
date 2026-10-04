@@ -1,0 +1,15 @@
+{
+  "level": "standard",
+  "label": "WOS-E4-TWO-PARTY",
+  "allowed_tsa_urls": [
+    "https://freetsa.org/tsr"
+  ],
+  "trusted_roots": [
+    "freetsa-root.pem"
+  ],
+  "untrusted_certificates": [
+    "freetsa-tsa.pem"
+  ],
+  "check_revocation": false,
+  "require_retention": false
+}

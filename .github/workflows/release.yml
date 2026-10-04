@@ -94,24 +94,17 @@ jobs:
           done
           echo "version/tag check passed: $expected"
 
-      - name: Assert the CLI reports the tag version
-        # The filename check above reads the version from the build backend.
-        # The CLI reads it from the package source. Those were two separate
-        # literals and they drifted: 0.3.0 through 0.3.3 all shipped a wheel
-        # whose own '--version' printed 0.2.0. A verifier that cannot state its
-        # own version correctly is not a credible provenance tool, so assert
-        # the runtime string against the tag as well.
-        run: |
-          set -euo pipefail
-          expected="${{ steps.ref.outputs.tag }}"
-          expected="${expected#v}"
-          reported="$(PYTHONPATH=src python -c 'import witnessos_verifier as m; print(m.__version__)')"
-          if [ "$reported" != "$expected" ]; then
-            echo "::error::Package reports version '$reported' but the tag is '$expected'."
-            echo "::error::Set __version__ in src/witnessos_verifier/__init__.py to match the tag."
-            exit 1
-          fi
-          echo "runtime version check passed: $reported"
+      # Gate the release on the artefact itself, before anything is signed or
+      # published. A wheel that has never been executed is not a release, and
+      # signing it keylessly would bind our identity to an unverified claim.
+      #
+      # This replaces the former "Assert the CLI reports the tag version" step.
+      # That step read a source literal, and the literal is gone: the version now
+      # has a single source of truth in the distribution metadata. The only
+      # version claim worth asserting is the one the installed wheel makes about
+      # itself, and this gate reads it from a clean-room install.
+      - name: Release gate - verify the built artifact
+        run: bash scripts/verify_release_artifact.sh --wheel "$(find dist -name '*.whl' -print -quit)"
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@v0

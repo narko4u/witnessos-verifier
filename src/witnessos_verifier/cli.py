@@ -28,7 +28,8 @@ def main():
     This verifier reads WitnessOS evidence bundles and cryptographically
     checks event signatures, hash chains, and signed batch/Merkle binding.
     E4 requires an operator trust policy, an authenticated RFC 3161 timestamp,
-    and a signed receipt from an independently trusted retention custodian.
+    and an intact WORM evidence copy. A signed retention receipt is recorded as
+    an attribute and required only where the policy sets require_retention.
 
     No gateway, credential broker, or key management code is included.
     """

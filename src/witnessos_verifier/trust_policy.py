@@ -95,6 +95,11 @@ class TrustPolicy:
     # Independently provisioned retention-authority public keys, never loaded from a bundle.
     retention_authorities: Dict[str, str] = field(default_factory=dict)
     minimum_retention_seconds: int = 0
+    # Whether an authenticated retention receipt is REQUIRED by this operator.
+    # Default False, matching docs/CUSTODY.md 7: the attribute is recorded and
+    # retention never moves the grade, so two-party evidence reaches E4 on the
+    # cryptography alone. Set True where custody is a condition of acceptance.
+    require_retention: bool = False
 
     # Required Extended Key Usage
     required_eku: str = OID_TIME_STAMPING
@@ -147,6 +152,7 @@ class TrustPolicy:
             max_timestamp_age_seconds=data.get("max_timestamp_age_seconds"),
             retention_authorities=data.get("retention_authorities", {}),
             minimum_retention_seconds=data.get("minimum_retention_seconds", 0),
+            require_retention=data.get("require_retention", False),
             required_eku=data.get("required_eku", OID_TIME_STAMPING),
             allowed_hash_algorithms=set(
                 data.get("allowed_hash_algorithms", ALLOWED_HASH_ALGORITHMS)

@@ -68,5 +68,33 @@ jobs:
           .venv/bin/pip install . pytest pytest-cov
       - name: Run tests
         run: .venv/bin/python -m pytest --cov=witnessos_verifier --cov-report=term-missing
-      - name: Verify CLI entry point
-        run: .venv/bin/witnessos-verifier --version || .venv/bin/witnessos-verify --version || echo "CLI entry name varies"
+      - name: Verify CLI entry point and its self-reported version
+        run: |
+          set -euo pipefail
+          # This assertion must be ABLE to fail. The previous form was
+          # `... --version || ... || echo "CLI entry name varies"`, which always
+          # exits 0 and therefore could never report the defect found on
+          # 2026-10-04: the 0.3.0 wheel reported version 0.2.0.
+          REPORTED="$(.venv/bin/witnessos-verifier --version | sed -E 's/.*version[ ,]+//' | tr -d '[:space:]')"
+          DECLARED="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' pyproject.toml | head -1)"
+          echo "reported: $REPORTED / declared: $DECLARED"
+          if [ "$REPORTED" != "$DECLARED" ]; then
+            echo "::error::the installed CLI reports $REPORTED but pyproject.toml declares $DECLARED"
+            exit 1
+          fi
+
+  release-artifact:
+    name: Built artifact gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
+      # Proves every external claim against the artefact a user installs, from a
+      # clean virtualenv that cannot see the source tree: version self-consistency
+      # and the real grade and exit code for both shipped fixtures.
+      - name: Verify the built artifact
+        run: bash scripts/verify_release_artifact.sh

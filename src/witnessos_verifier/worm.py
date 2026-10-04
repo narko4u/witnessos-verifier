@@ -13,7 +13,7 @@ was recorded at storage time.
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List
 
@@ -41,6 +41,7 @@ class WormResult:
     file_count_matches: bool
     errors: List[str]
     retention_verified: bool = False
+    retention_errors: List[str] = field(default_factory=list)
 
 
 def load_worm_bundle(worm_dir: Path) -> WormBundle:
@@ -104,7 +105,13 @@ def verify_worm_bundle(worm_dir: Path, evidence_dir: Path, policy=None, timestam
         )
 
     retention_ok, retention_errors = verify_retention(worm_dir, evidence_dir, policy, timestamp_result)
-    errors.extend(retention_errors)
+
+    # Retention is reported as an attribute, never folded into the store verdict.
+    # docs/CUSTODY.md 7: the attribute is recorded and require_retention=True
+    # demands it, and retention never moves the grade. Keeping these out of
+    # `errors` is what lets a two-party receipt be E4-clean on the cryptography
+    # alone, while a caller that requires custody still reads the reason in
+    # retention_errors.
 
     return WormResult(
         valid=len(errors) == 0,
@@ -113,6 +120,7 @@ def verify_worm_bundle(worm_dir: Path, evidence_dir: Path, policy=None, timestam
         file_count_matches=count_ok,
         errors=errors,
         retention_verified=retention_ok,
+        retention_errors=retention_errors,
     )
 
 

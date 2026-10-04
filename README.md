@@ -2,7 +2,7 @@
 
 [![OpenSSF Best Practices - Baseline 1](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fwww.bestpractices.dev%2Fprojects%2F14138.json&query=badge_percentage_baseline_1&label=OpenSSF%20Baseline%201&suffix=%25&color=success)](https://www.bestpractices.dev/projects/14138) [![OpenSSF Best Practices - Baseline 2](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fwww.bestpractices.dev%2Fprojects%2F14138.json&query=badge_percentage_baseline_2&label=OpenSSF%20Baseline%202&suffix=%25&color=success)](https://www.bestpractices.dev/projects/14138) [![OpenSSF Best Practices - Baseline 3](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fwww.bestpractices.dev%2Fprojects%2F14138.json&query=badge_percentage_baseline_3&label=OpenSSF%20Baseline%203&suffix=%25&color=success)](https://www.bestpractices.dev/projects/14138)
 
-> **E4 verification implemented with explicit external trust.** Real RFC 3161 signatures and independent custodian receipts are verified. The existing fixtures still lack production retention receipts; Stripe also has a root mismatch. See [E4-BUNDLE-FORMAT.md](E4-BUNDLE-FORMAT.md) and [E4-IMPLEMENTATION-REPORT.md](E4-IMPLEMENTATION-REPORT.md).
+> **E4 verification implemented with explicit external trust.** Real RFC 3161 signatures are verified against operator-provisioned trust roots. An authenticated retention receipt is recorded and reported as an attribute of the bundle. It is made a requirement only where an operator's trust policy sets `require_retention`. Both bundled fixtures reach E4 under a policy that does not require custody. See [E4-BUNDLE-FORMAT.md](E4-BUNDLE-FORMAT.md) and [E4-IMPLEMENTATION-REPORT.md](E4-IMPLEMENTATION-REPORT.md).
 
 Standalone verifier for WitnessOS evidence. It checks event and manifest signatures in any of Ed25519, ML-DSA-65 or a hybrid suite declaring both, plus canonical event chains, sequence bounds, event membership and binding to the signed batch root. It also verifies engine-native records directly, so a counterparty can check one with the engine absent. Bundled keys prove consistency with those keys; authenticate their identity independently.
 
@@ -12,9 +12,9 @@ Standalone verifier for WitnessOS evidence. It checks event and manifest signatu
 | E1 | Events loaded |
 | E2 | E1 plus valid event/manifest signatures, chain, sequence and signed batch binding |
 | E3 | E2 plus a signed event recording provider acknowledgement |
-| E4 | E3 plus bound inclusion proof, authenticated timestamp and authenticated WORM retention evidence |
+| E4 | E3 plus bound inclusion proof, authenticated timestamp and an intact WORM evidence copy |
 
-E3 records the signer's claim about a provider response; it does not independently authenticate a provider or query a live service. E4 requires operator-provisioned TSA trust roots and an independently signed storage-custodian receipt over the timestamped snapshot. A matching local WORM checksum is not immutability evidence.
+The anchor is the cryptography: the signature, the RFC 3161 timestamp and the Merkle inclusion proof, verified directly by the parties to the record. E3 records the signer's claim about a provider response; it does not independently authenticate a provider or query a live service. E4 requires operator-provisioned TSA trust roots and an intact WORM evidence copy of the timestamped snapshot. A signed retention receipt from a custodian you trust is recorded and reported as an attribute of the bundle. It is made a requirement only where your policy sets `require_retention`. A matching local WORM checksum is not immutability evidence.
 
 The CLI returns exit 1 when supplied evidence fails or cannot be verified. A lower grade may describe checks that passed; it does not override an invalid bundle result.
 
@@ -55,10 +55,14 @@ events/root/proof/timestamp were regenerated on 2026-09-08 so canonical events
 reproduce the signed Merkle root (previously the root binding failed, capping the
 lane at E1).
 
-- `e4-gmail-approved-send`: signatures and signed event-root binding pass; the real FreeTSA signature passes with operator trust, but an independent retention receipt is missing. E3, invalid bundle, exit 1.
-- `e4-stripe-refund`: canonical events now reproduce the signed Merkle root (fixture regenerated 2026-09-08); event signatures and the real FreeTSA signature pass with operator trust, but an independent retention receipt is missing. E3, invalid bundle, exit 1.
+- `e4-gmail-approved-send`: signatures and signed event-root binding pass. Verified against the real FreeTSA service under the bundled `tests/public_tsa_certificates/two-party-standard.json` policy: E4, exit 0.
+- `e4-stripe-refund`: canonical events reproduce the signed Merkle root (fixture regenerated 2026-09-08). Verified under the same policy: E4, exit 0.
 
-No fixture has been demonstrated to be valid E4 without an independent custodian receipt. Both fixtures grade E4 only when the operator trust policy names a retention authority whose signed receipt is present (see E4-IMPLEMENTATION-REPORT.md). Do not present the test custodian as real WORM custody.
+Both fixtures reach E4 on the cryptography alone, with no custodian in the loop. Under
+`tests/public_tsa_certificates/two-party-requiring-custody.json`, which sets `require_retention`,
+both fall to E3 and exit 1, because no authenticated retention receipt is present. With no trust
+policy the timestamp cannot be authenticated, so both are E3 and exit 1. Do not present the test
+custodian as real WORM custody.
 
 ## Development
 
@@ -104,7 +108,12 @@ purpose/EKU, digest/policy/nonce constraints and the timestamp trust window are
 verified. STANDARD does not check revocation. STRICT/revocation-required policies
 fail closed until authenticated CRL/OCSP support exists. Signed retention receipts
 prove what an independently trusted custodian attested; the offline verifier does
-not query live storage. See the exact [bundle recipe](E4-BUNDLE-FORMAT.md).
+not query live storage. Whether a receipt is required is an operator decision:
+`require_retention` in the trust policy, default `false`, so a two-party record
+reaches E4 on the cryptography alone. Two named profiles are defined so a
+procurement or assessment document can cite the exact configuration rather than
+describe it: `WOS-E4-TWO-PARTY` and `WOS-E4-TWO-PARTY-RETENTION`. See
+[PROFILES.md](PROFILES.md) and the exact [bundle recipe](E4-BUNDLE-FORMAT.md).
 
 ## Dependencies
 
@@ -252,6 +261,7 @@ Apache 2.0 - see [LICENSE](LICENSE)
 
 ## Related
 
+- [Conformance profiles](PROFILES.md) - the citable named profiles
 - [WitnessOS™ Spec](https://github.com/narko4u/witnessos) - the protocol specification
 - [Contact Empire Labs](mailto:contact@empirelabs.com.au)
 

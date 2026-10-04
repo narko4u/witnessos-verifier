@@ -134,7 +134,12 @@ def controlled_e4(bundle_path, tsa_policy, tmp_path):
     shutil.copytree(bundle_path, p)
     sk = nacl.signing.SigningKey.generate()  # ephemeral TEST custodian; no production keys
     make_test_custody_receipt(p, sk)
-    policy = replace(tsa_policy, retention_authorities={'TEST-CUSTODIAN-NOT-PRODUCTION': bytes(sk.verify_key).hex()})
+    # These tests are about an operator that REQUIRES authenticated retention, so
+    # the policy demands it. The default, where retention is a recorded attribute
+    # and never a grade requirement, is exercised by test_e4_json_cli_and_alpha
+    # and by the attribute assertions in test_grade_integrity.
+    policy = replace(tsa_policy, require_retention=True,
+                     retention_authorities={'TEST-CUSTODIAN-NOT-PRODUCTION': bytes(sk.verify_key).hex()})
     return p, policy, sk
 
 
@@ -193,12 +198,26 @@ def test_original_seven_with_real_trust(controlled_e4, attack):
     assert not r.valid and r.evidence_grade != 'E4'
 
 
-def test_fixtures_have_real_tsa_but_no_retention(bundle_path, tsa_policy):
-    for name, grade in [('e4-gmail-approved-send', 'E3'), ('e4-stripe-refund', 'E3')]:
-        r = verify(bundle_path.parent/name, trust_policy=tsa_policy, tsa_url=TSA)
+def test_fixtures_have_real_tsa_and_retention_is_an_attribute(bundle_path, tsa_policy):
+    """No retention receipt is an attribute, not a grade blocker (CUSTODY.md 7).
+
+    The same bundles under a policy that DEMANDS custody must not reach E4. That
+    second half is asserted here too, because it is what stops this rule from
+    becoming a way to drop the requirement altogether.
+    """
+    for name in ('e4-gmail-approved-send', 'e4-stripe-refund'):
+        bundle = bundle_path.parent/name
+        r = verify(bundle, trust_policy=tsa_policy, tsa_url=TSA)
         assert r.timestamp_result.valid, r.errors
-        assert r.evidence_grade == grade and not r.valid
-        assert any('Authenticated retention missing' in e for e in r.errors)
+        assert r.evidence_grade == 'E4' and r.valid, (r.evidence_grade, r.errors)
+        assert not r.worm_result.retention_verified
+        assert any('Authenticated retention missing' in w for w in r.warnings)
+        assert not any('Authenticated retention missing' in e for e in r.errors)
+
+        demanding = replace(tsa_policy, require_retention=True)
+        d = verify(bundle, trust_policy=demanding, tsa_url=TSA)
+        assert d.evidence_grade == 'E3' and not d.valid
+        assert any('Authenticated retention missing' in e for e in d.errors)
 
 
 def test_embedded_tsa_certificate(bundle_path, tsa_policy, tmp_path):

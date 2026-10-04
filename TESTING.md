@@ -1,4 +1,4 @@
-> **Current verification contract:** Real TSA authentication and signed independent custodian receipts are supported with explicit operator trust. STRICT revocation remains unavailable. Historical assurance claims below must be read with [E4-BUNDLE-FORMAT.md](E4-BUNDLE-FORMAT.md).
+> **Current verification contract:** Real TSA authentication is supported with explicit operator trust. A signed retention receipt is recorded as an attribute and is not a grade requirement; it is demanded only where a trust policy sets `require_retention`. STRICT revocation remains unavailable. Historical assurance claims below must be read with [E4-BUNDLE-FORMAT.md](E4-BUNDLE-FORMAT.md).
 
 # Testing Policy
 
@@ -23,6 +23,37 @@ the codebase. It is a normative part of the contribution process (see
 - **Before every release** — the maintainers run the suite on the tagged
   commit, and the `Release` workflow builds the artifacts from that exact
   commit.
+
+## The built-artifact gate
+
+Every external claim this project makes resolves to the artefact a user
+installs, never to a working tree. The test suite imports the source tree, so a
+packaging fault is invisible to it. The gate closes that gap:
+
+```bash
+scripts/verify_release_artifact.sh [--wheel PATH] [--bundle DIR]
+```
+
+It builds the wheel, installs it into a throwaway virtualenv that cannot see the
+source tree and then asserts:
+
+1. the package resolves inside that clean room and carries no editable-install
+   marker;
+2. three versions agree: the wheel filename, the wheel metadata and the CLI's own
+   `--version` output, and all three agree with `pyproject.toml`;
+3. the real CLI grades both shipped fixtures as documented, asserting the grade
+   **and** the exit code for a no-custody policy (E4, exit 0), a custody-required
+   policy (E3, exit 1) and no policy at all (E3, exit 1).
+
+It runs as the `release-artifact` job in CI and again inside the `Release`
+workflow before anything is signed or published. A wheel that has never been
+executed is not a release.
+
+**Why it exists.** On 2026-10-04 building the wheel caught a defect no test could
+see: `pyproject.toml` declared 0.3.0 and the wheel metadata said 0.3.0, while
+`witnessos-verifier --version` reported 0.2.0, because `__init__.py` hardcoded its
+own copy of the version. `tests/test_version.py` now guards that specific defect
+from the inside, and the gate guards the whole class from the outside.
 
 ## Test suite layout
 
@@ -65,8 +96,11 @@ merged until the gap is closed with tests.
 CI reports per-test results plus a coverage summary. A passing run means:
 
 1. Every test in `tests/` passed in a clean environment.
-2. The CLI entry point loads (`witnessos-verifier --version`).
-3. Coverage was reported so maintainers can judge whether new code is tested.
+2. The CLI entry point loads and reports the version declared in
+   `pyproject.toml`.
+3. The built-artifact gate passed, so the graded result holds for the wheel a
+   user installs and not only for the source tree.
+4. Coverage was reported so maintainers can judge whether new code is tested.
 
 If a test fails, fix the code or the test — never weaken or delete a failing
 test to make CI pass without a maintainer review.

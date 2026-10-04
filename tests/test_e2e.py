@@ -39,8 +39,12 @@ class TestE2EVerification:
     def test_external_requirements_explicitly_missing(self, bundle_path):
         from witnessos_verifier.verifier import verify
 
+        # Under the default policy the external requirements the verifier cannot
+        # itself satisfy are named explicitly. Retention is no longer one of them:
+        # it is an attribute (CUSTODY.md 7) and is reported separately, so a
+        # missing receipt no longer appears as a missing requirement.
         result = verify(bundle_path)
-        assert len(result.grade.requirements_missing) == 2, \
+        assert result.grade.requirements_missing == ["E4: RFC 3161 timestamp invalid or missing"], \
             f"Missing requirements: {result.grade.requirements_missing}"
 
 

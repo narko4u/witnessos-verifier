@@ -1,3 +1,5 @@
+> **Current verification contract:** Real TSA authentication is supported with explicit operator trust. A signed retention receipt is recorded as an attribute and is not a grade requirement; it is demanded only where a trust policy sets `require_retention`. STRICT revocation remains unavailable. This report is retained as a historical implementation record. It was written before 2026-10-04, when retention was treated as a grade requirement. See [README.md](README.md) for the current contract.
+
 # E4 authentication implementation report
 
 Base: `648fee3e1c73a2a1ba64385d662276ffda4cd24f` (merged PR #11).

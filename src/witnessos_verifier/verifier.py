@@ -254,6 +254,7 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
         event_signatures_valid=not signature_errors,
         batch_binding_valid=manifest_result is not None and not any(not e.startswith("Merkle proof:") for e in binding_errors),
         merkle_proof_valid=manifest_result is not None and not any(e.startswith("Merkle proof:") for e in binding_errors),
+        require_retention=bool(getattr(trust_policy, "require_retention", False)),
     )
 
     # Collect all errors
@@ -267,6 +268,14 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
         errors.extend(timestamp_result.errors)
     if worm_result and worm_result.errors:
         errors.extend(worm_result.errors)
+    if worm_result and getattr(worm_result, "retention_errors", None):
+        # Retention is an attribute. It is a hard error only where the operator's
+        # policy demands custody, and otherwise it is surfaced as a warning so a
+        # reader can see the position without the receipt being failed for it.
+        if getattr(trust_policy, "require_retention", False):
+            errors.extend(worm_result.retention_errors)
+        else:
+            warnings.extend(worm_result.retention_errors)
 
     return VerifyResult(
         bundle_path=bundle_path,

@@ -64,6 +64,7 @@ def derive_grade(
     event_signatures_valid: bool = False,
     batch_binding_valid: bool = False,
     merkle_proof_valid: bool = False,
+    require_retention: bool = False,
 ) -> GradeResult:
     """Derive the evidence grade from verification results.
 
@@ -130,8 +131,19 @@ def derive_grade(
         missing.append("E4: RFC 3161 timestamp invalid or missing")
         e4_ok = False
 
-    if worm_result and worm_result.valid and getattr(worm_result, "retention_verified", False):
+    # The WORM evidence copy must be intact. An authenticated retention receipt is
+    # an ATTRIBUTE: it is recorded and reported, and demanded only when the
+    # operator's policy sets require_retention (docs/CUSTODY.md 7). Retention never
+    # moves the grade, because a snapshot still existing was never evidence that
+    # the statement is more true.
+    retention_verified = bool(getattr(worm_result, "retention_verified", False))
+    if worm_result and worm_result.valid and (retention_verified or not require_retention):
         met.append("E4: WORM evidence copy valid")
+        met.append(
+            "E4 attribute: authenticated retention receipt"
+            if retention_verified
+            else "E4 attribute: no retention receipt (attribute, not a grade requirement)"
+        )
     else:
         missing.append("E4: Authenticated WORM retention evidence invalid or missing")
         e4_ok = False

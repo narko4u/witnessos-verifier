@@ -1,3 +1,5 @@
+> **Current verification contract:** Real TSA authentication is supported with explicit operator trust. A signed retention receipt is recorded as an attribute and is not a grade requirement; it is demanded only where a trust policy sets `require_retention`. STRICT revocation remains unavailable. The body below is retained as a record. It includes historical diagnosis from before 2026-10-04, when retention was treated as a grade requirement.
+
 # Authenticated E4 bundles: operator policy and re-anchoring
 
 This release verifies real RFC 3161/CMS signatures and independent retention
@@ -180,10 +182,12 @@ for the timestamp imprint. They omit certificates, so supply the public TSA sign
 certificate as `untrusted_certificates` and independently trust the FreeTSA root.
 
 - Gmail: timestamp 2026-06-27 06:38:00Z, serial 0x05D64584. Event signatures, chain,
-  batch binding and inclusion proof pass. **Only authenticated retention is
-  missing** with the supplied operator TSA policy. No re-anchor is needed if the
-  custodian stores and attests this exact finalized snapshot now; this proves
-  retention from that custody issuance, not retroactive retention since June.
+  batch binding and inclusion proof pass. **Measured 2026-10-04:** this fixture reaches
+  E4, exit 0, under a trust policy that does not require custody. Where a policy sets
+  `require_retention`, the authenticated retention receipt is the only missing item. If
+  a custodian stores and attests this exact finalized snapshot now, the receipt proves
+  retention from its own issuance rather than retroactive retention since June, so no
+  re-anchor is needed.
 - Stripe: timestamp 2026-06-28 05:37:32Z, serial 0x05D8894A, nonce
   0x96AD64152740F7C4. The TSA authenticates the submitted old root, not the loaded
   events. Signed root is
@@ -195,6 +199,9 @@ certificate as `untrusted_certificates` and independently trust the FreeTSA root
   the manifest, obtain a new timestamp for the new root, finalize local checksums,
   and obtain the independent custodian receipt over the finalized snapshot.
   Do not reuse the old timestamp or alter fixtures to disguise this mismatch.
+  **Measured 2026-10-04:** this rebuild was carried out on 2026-09-08 and the
+  fixture now reaches E4, exit 0, under a policy that does not require custody, so
+  the signed root and proof reproduce from the loaded events.
 
 No production retention receipt was available during this work. The E4 positive
 integration test uses the **real Gmail FreeTSA token** and a clearly labelled

@@ -36,8 +36,10 @@ class TestE3VocabularyBothForms:
         from witnessos_verifier.verifier import PROVIDER_ACK_TYPES
         assert any(e.event_type in PROVIDER_ACK_TYPES for e in load_events(stripe))
         result = verify(stripe)
-        assert not result.valid
-        assert "Authenticated retention missing" in " ".join(result.errors)
+        assert not result.valid  # the default policy cannot verify the external TSA
+        # Retention is an attribute: an absent receipt is reported, never failed.
+        assert "Authenticated retention missing" in " ".join(result.warnings)
+        assert not any("Authenticated retention missing" in e for e in result.errors)
         assert result.evidence_grade in ("E3",)
 
     def test_dot_vocabulary_confirmed(self):

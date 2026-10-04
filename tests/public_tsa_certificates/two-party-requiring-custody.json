@@ -1,0 +1,8 @@
+{
+  "level": "standard",
+  "label": "WOS-E4-TWO-PARTY-RETENTION",
+  "allowed_tsa_urls": ["https://freetsa.org/tsr"],
+  "trusted_roots": ["freetsa-root.pem"],
+  "check_revocation": false,
+  "require_retention": true
+}
