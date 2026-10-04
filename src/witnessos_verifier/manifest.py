@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import List
 
 from .key_registry import KeyRegistry
-from .signatures import UnsupportedScheme, verify_detached_signature, verify_signature
+from .signatures import UnsupportedScheme, verify_signature
 
 
 class ManifestError(Exception):

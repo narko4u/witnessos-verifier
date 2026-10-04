@@ -3,8 +3,6 @@
 No engine import. The record is built here in the engine's shape, signed in the engine's
 format, and verified by this module alone. That is the property a counterparty relies on.
 """
-import base64
-import json
 
 import pytest
 
