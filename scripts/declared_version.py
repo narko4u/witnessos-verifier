@@ -51,7 +51,6 @@ def declared_version(root: Path) -> str:
     if expression:
         # `expression` is trusted the same way hatch trusts it: derived from
         # pyproject, inside the repository, at build time.
-        variables = {"__version__": None}
         match = re.search(r"v?([0-9][0-9A-Za-z.+-]*)", str(expression))
         if match:
             return match.group(1)

@@ -5,7 +5,7 @@ name = "witnessos-verifier"
 # filename can never disagree again. They drifted once: the wheel was named
 # 0.3.3 while 'witnessos-verifier --version' still printed 0.2.0.
 dynamic = ["version"]
-description = "Standalone open-source verifier for WitnessOS™ evidence: Ed25519 and ML-DSA-65 hybrid signatures, Merkle chains, RFC 3161 timestamps"
+description = "Standalone open-source verifier for WitnessOS evidence: Ed25519 and ML-DSA-65 hybrid signatures, Merkle chains, RFC 3161 timestamps"
 readme = "README.md"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"

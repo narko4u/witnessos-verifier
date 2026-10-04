@@ -76,10 +76,18 @@ jobs:
           # exits 0 and therefore could never report the defect found on
           # 2026-10-04: the 0.3.0 wheel reported version 0.2.0.
           REPORTED="$(.venv/bin/witnessos-verifier --version | sed -E 's/.*version[ ,]+//' | tr -d '[:space:]')"
-          DECLARED="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' pyproject.toml | head -1)"
+          # Read the declaration through the helper rather than grepping a fixed
+          # field. The version is dynamic under [tool.hatch.version], so the old
+          # pattern matched nothing and the comparison ran against empty input.
+          # That is a false failure in the gate, found in CI on 2026-10-04.
+          DECLARED="$(.venv/bin/python scripts/declared_version.py . | tr -d '[:space:]')"
           echo "reported: $REPORTED / declared: $DECLARED"
+          if [ -z "$DECLARED" ]; then
+            echo "::error::could not read the declared version out of pyproject.toml"
+            exit 1
+          fi
           if [ "$REPORTED" != "$DECLARED" ]; then
-            echo "::error::the installed CLI reports $REPORTED but pyproject.toml declares $DECLARED"
+            echo "::error::the installed CLI reports $REPORTED but the tree declares $DECLARED"
             exit 1
           fi
 

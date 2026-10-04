@@ -27,8 +27,7 @@ import pytest
 from click.testing import CliRunner
 
 import witnessos_verifier
-from witnessos_verifier import __version__
-from witnessos_verifier.cli import main
+import witnessos_verifier.cli
 
 DIST_NAME = "witnessos-verifier"
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -70,7 +69,7 @@ def test_there_is_exactly_one_version_literal_in_the_package():
         for value in pattern.findall(path.read_text(encoding="utf-8")):
             found.append((path.name, value))
     assert len(found) == 1, f"expected exactly one version literal, found {found}"
-    assert found[0][1] == __version__
+    assert found[0][1] == witnessos_verifier.__version__
 
 
 def test_the_installed_distribution_agrees_with_the_source():
@@ -78,18 +77,21 @@ def test_the_installed_distribution_agrees_with_the_source():
         installed = importlib.metadata.version(DIST_NAME)
     except importlib.metadata.PackageNotFoundError:      # pragma: no cover
         pytest.skip("no distribution installed in this environment")
-    assert __version__ == installed
+        return
+    assert witnessos_verifier.__version__ == installed
 
 
 def test_the_wheel_name_would_carry_the_same_version():
     """The filename is derived from the metadata, so assert the shape is coherent."""
-    assert re.fullmatch(r"\d+\.\d+\.\d+.*", __version__), f"{__version__!r} is not a release version"
+    assert re.fullmatch(r"\d+\.\d+\.\d+.*", witnessos_verifier.__version__), (
+        f"{witnessos_verifier.__version__!r} is not a release version"
+    )
 
 
 def test_cli_version_option_reports_the_source_version():
-    result = CliRunner().invoke(main, ["--version"])
+    result = CliRunner().invoke(witnessos_verifier.cli.main, ["--version"])
     assert result.exit_code == 0, result.output
-    assert __version__ in result.output
+    assert witnessos_verifier.__version__ in result.output
 
 
 if __name__ == "__main__":
