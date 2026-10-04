@@ -6,6 +6,10 @@
 
 Standalone verifier for WitnessOS evidence. It checks event and manifest signatures in any of Ed25519, ML-DSA-65 or a hybrid suite declaring both, plus canonical event chains, sequence bounds, event membership and binding to the signed batch root. It also verifies engine-native records directly, so a counterparty can check one with the engine absent. Bundled keys prove consistency with those keys; authenticate their identity independently.
 
+**Composite signatures.** Where a manifest declares a hybrid suite such as `ed25519+ml-dsa-65`, the verifier performs both halves over the same bytes and names the declared suite in its verdict, so the result states what was checked rather than passing silently. It refuses a manifest that declares a hybrid suite but carries no countersignature and it refuses one that carries a countersignature while declaring no suite. A hybrid record therefore cannot be downgraded to its classical half after the fact.
+
+**Proven with the engine absent.** On 2026-10-04 the verifier graded a live hybrid record at E4, exit 0, in a virtual environment where `import witnessos` fails, so the run rests on the record and two public keys and not on any Empire Labs component. The same run refused both tamper variants by name. The record and its landing evidence are published with the post-quantum programme.
+
 | Grade | Required evidence |
 |---|---|
 | E0 | No events loaded (grade-derivation API) |
@@ -262,7 +266,7 @@ Apache 2.0 - see [LICENSE](LICENSE)
 ## Related
 
 - [Conformance profiles](PROFILES.md) - the citable named profiles
-- [WitnessOS™ Spec](https://github.com/narko4u/witnessos) - the protocol specification
+- [WitnessOS Spec](https://github.com/narko4u/witnessos) - the protocol specification
 - [Contact Empire Labs](mailto:contact@empirelabs.com.au)
 
 ---
