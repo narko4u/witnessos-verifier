@@ -172,9 +172,18 @@ def verify_engine_anchor(manifest: Dict[str, Any], leaves: List[str]) -> Dict[st
     errors: List[str] = []
     if not leaves:
         return {"valid": False, "errors": ["no leaves supplied"], "recomputed": None}
+    # A leaf that is not hex is a refusal with a named reason, never a traceback.
+    # bytes.fromhex raises ValueError, and the CLI calls this without a guard, so a
+    # malformed record used to reach the user as a stack trace. An unverifiable
+    # record has to be reported as unverifiable.
+    try:
+        leaf_bytes = [bytes.fromhex(_bare_hex(x)) for x in leaves]
+    except (TypeError, ValueError) as exc:
+        return {"valid": False, "errors": [f"leaf value is not hex ({exc})"],
+                "recomputed": None, "declared": _bare_hex(manifest.get("merkle_root", ""))}
     # The engine's leaves are already per-event hashes, so they are combined as
     # leaf hashes rather than re-hashed from event bytes.
-    recomputed = build_merkle_tree([bytes.fromhex(_bare_hex(x)) for x in leaves]).hex()
+    recomputed = build_merkle_tree(leaf_bytes).hex()
     declared = _bare_hex(manifest.get("merkle_root", ""))
     got = _bare_hex(recomputed) if recomputed else None
     if got != declared:

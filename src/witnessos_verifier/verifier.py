@@ -58,6 +58,24 @@ class VerifyResult:
             return self.grade.grade
         return "NONE"
 
+    @property
+    def manifest_suite(self) -> str:
+        """The suite the batch manifest declares, empty for a single-scheme record.
+
+        The composite path is checked either way, but a reader who is not told
+        cannot distinguish a post-quantum hybrid record from a classical one, and
+        that distinction is the entire reason the suite dimension exists. A verdict
+        on a hybrid record has to say that it is one.
+        """
+        if self.manifest_result is None:
+            return ""
+        return self.manifest_result.signature_suite or ""
+
+    @property
+    def composite(self) -> bool:
+        """True when the record declares more than one signing scheme."""
+        return bool(self.manifest_suite)
+
     def summary(self) -> str:
         lines = []
         lines.append(f"Bundle: {self.bundle_path}")
@@ -75,6 +93,9 @@ class VerifyResult:
         if self.manifest_result:
             status = "PASS" if self.manifest_result.valid else "FAIL"
             lines.append(f"  Manifest: {status}")
+            if self.manifest_suite:
+                counter = "verified" if self.manifest_result.countersignature_valid else "FAILED"
+                lines.append(f"  Suite:    {self.manifest_suite} (composite, counter half {counter})")
 
         if self.timestamp_result:
             status = "PASS" if self.timestamp_result.valid else "FAIL"

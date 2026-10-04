@@ -72,6 +72,8 @@ def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bo
             "chain_valid": result.chain_result.valid if result.chain_result else None,
             "ledger_valid": result.ledger_result.sequence_monotonic if result.ledger_result else None,
             "manifest_valid": result.manifest_result.valid if result.manifest_result else None,
+            "manifest_suite": result.manifest_suite,
+            "composite": result.composite,
             "timestamp_valid": result.timestamp_result.valid if result.timestamp_result else None,
             "timestamp_signature_verified": result.timestamp_result.signature_verified if result.timestamp_result else False,
             "timestamp_trust_verified": result.timestamp_result.trust_verified if result.timestamp_result else False,

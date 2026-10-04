@@ -4,4 +4,11 @@ __pycache__/
 dist/
 .pytest_cache/
 .venv/
-scripts/
+# A blanket scripts/ rule kept the release gate out of the repository while both
+# ci.yml and release.yml invoke it, so the release-artifact job could never have
+# run and the missing file would have failed the job rather than the commit. The
+# directory is tracked from here with a named exception list, so a stray local
+# helper still stays out.
+scripts/*
+!scripts/verify_release_artifact.sh
+!scripts/declared_version.py

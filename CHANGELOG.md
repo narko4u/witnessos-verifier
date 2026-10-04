@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.3.5 (2026-10-05)
+
+### Added
+
+- **A passing verdict now names the signature suite.** The composite path was
+  verified and never reported, so a counterparty running `verify` against a
+  post-quantum hybrid record saw `Manifest: PASS` and no mention of ML-DSA-65
+  anywhere in the output. The property was checked and invisible at the same
+  time, which for a reader amounts to absent. `verify` now prints a `Suite:` line
+  on a composite record, including the counter half's own verdict, and the JSON
+  output carries `manifest_suite` and `composite`
+- **The shipped hybrid example is pinned by tests.** `examples/engine-record/` is
+  the record a counterparty is pointed at, and nothing asserted that it still
+  verifies, so it could drift away from the code unobserved. A new test file runs
+  the CLI against the shipped example, checks the suite it declares, reproduces
+  its Merkle root from its own leaves, and confirms that one flipped hex digit
+  makes the anchor fail
+- **`scripts/verify_release_artifact.sh`, with `scripts/declared_version.py`.**
+  CI and the release workflow both invoked the first, which did not exist, so the
+  release-artifact job and the whole Release workflow could not have run. The
+  gate builds the wheel, installs it into a clean-room virtualenv, asserts the
+  package resolves there with no editable-install marker, checks that the wheel
+  filename, the wheel metadata, the CLI and the declared version all agree, then
+  grades both shipped fixtures under three operator trust policies
+
+### Fixed
+
+- **A malformed leaf raised a traceback instead of refusing.** `verify-engine`
+  passed leaf values to `bytes.fromhex` before validating them, so a record
+  carrying a non-hex leaf died with an exception rather than a verdict. A
+  malformed record is an unverifiable record, and a refusal that names the fault
+  is the correct output
+- **The release workflow's version assertion read the wrong place.** It compared
+  the tag against a source literal that the release process cannot reach from
+  `pyproject.toml`. It now compares the tag against the distribution filename,
+  and the deeper check on the built artefact is left to the release gate
+
 ## 0.3.4 (2026-09-16)
 
 ### Fixed
