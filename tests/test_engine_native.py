@@ -132,3 +132,78 @@ def test_the_anchor_reproduces_from_declared_leaves():
 def test_a_wrong_leaf_fails_the_anchor():
     v = verify_engine_anchor({"merkle_root": "sha256:" + "00" * 32, "leaf_count": 1}, ["ab" * 32])
     assert v["valid"] is False
+
+# ── The labelled single-scheme shape ───────────────────────────────────────
+# These cover the form the engine writes TODAY: `sig_algorithm` is set to the
+# primary label when exactly one ledger key is provisioned. It is distinct from
+# the `sig_algorithm is None` shape above, which is what the engine wrote before
+# the suite dimension existed.
+#
+# The gap: the None case had a single-scheme branch and the labelled case did
+# not, so a labelled single-scheme manifest fell through to the composite branch
+# and was refused for naming fewer than two schemes. Every classical record the
+# engine still produces failed verification while its signature checked out.
+# Found by an end-to-end run on 2026-10-04, not by a unit test.
+
+
+def _single(algorithm, label):
+    """One key, one label, signed the way the engine signs it."""
+    if algorithm == "ed25519":
+        sk = ed25519.Ed25519PrivateKey.generate()
+    else:
+        sk = mldsa.MLDSA65PrivateKey.generate()
+    keys = {"k_one": {"public_key_hex": _raw(sk.public_key()).hex(), "algorithm": algorithm}}
+    m = _manifest(signer_key_id="k_one", sig_algorithm=label)
+    payload = engine_signed_payload(m)
+    m["signature"] = _sign(sk, payload, label)
+    return m, keys
+
+
+@requires_crypto
+def test_a_labelled_classical_manifest_verifies():
+    """Ed25519 alone, labelled. The default deployment."""
+    m, keys = _single("ed25519", "ed25519")
+    v = verify_engine_manifest(m, keys)
+    assert v["valid"] is True, v["errors"]
+    assert v["composite"] is False
+    assert v["suite"] == "ed25519"
+
+
+@requires_crypto
+def test_a_labelled_post_quantum_manifest_verifies():
+    """ML-DSA-65 alone, labelled. The post-quantum profile with nothing classical."""
+    m, keys = _single("ml-dsa-65", "ml-dsa-65")
+    v = verify_engine_manifest(m, keys)
+    assert v["valid"] is True, v["errors"]
+    assert v["composite"] is False
+
+
+@requires_crypto
+def test_a_tampered_labelled_single_scheme_manifest_fails():
+    """The control. The same record with one signature nibble flipped."""
+    m, keys = _single("ed25519", "ed25519")
+    label, hexpart = m["signature"].split(":", 1)
+    flipped = ("1" if hexpart[0] == "0" else "0") + hexpart[1:]
+    m["signature"] = f"{label}:{flipped}"
+    v = verify_engine_manifest(m, keys)
+    assert v["valid"] is False
+    assert v["halves"]["primary"] is False
+
+
+@requires_crypto
+def test_a_single_label_disagreeing_with_its_key_is_rejected():
+    """A label naming a scheme the key does not declare is still refused."""
+    m, keys = _single("ed25519", "ed25519")
+    m["sig_algorithm"] = "ml-dsa-65"
+    v = verify_engine_manifest(m, keys)
+    assert v["valid"] is False
+    assert any("does not match the key's declared scheme" in e for e in v["errors"]), v["errors"]
+
+
+@requires_crypto
+def test_a_composite_suite_missing_its_second_half_is_still_rejected():
+    """Single-scheme is allowed; a TWO-scheme claim with no countersignature is not."""
+    m, keys = _single("ed25519", "ed25519+ml-dsa-65")
+    v = verify_engine_manifest(m, keys)
+    assert v["valid"] is False
+    assert any("no countersignature is present" in e for e in v["errors"]), v["errors"]

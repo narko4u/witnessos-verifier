@@ -105,7 +105,27 @@ def verify_engine_manifest(manifest: Dict[str, Any], keys: Dict[str, Any]) -> Di
 
     labels = [p.strip().lower() for p in str(suite).split("+") if p.strip()]
     if len(labels) < 2:
-        errors.append(f"suite {suite!r} names fewer than two schemes")
+        # A single declared scheme carrying an explicit label. That is what the
+        # engine writes when exactly one ledger key is provisioned, which is the
+        # default deployment and the state every deployment began in. It is not a
+        # fault and not a downgrade claim: it is a record whose own manifest says
+        # which one scheme signed it.
+        #
+        # Refusing it failed every classical record the engine still produces.
+        # Guardrail 2 keeps the classical profile alive while the post-quantum one
+        # is added, so the verifier has to verify it rather than reject it. The
+        # suite is returned and printed, which is what keeps the classical
+        # exposure visible instead of hidden.
+        ok = _half(primary_alg, primary_hex, payload, manifest.get("signature", ""),
+                   f"primary signature for {primary_id}", errors)
+        declared_single = str(primary_alg).strip().lower()
+        if declared_single not in labels:
+            errors.append(
+                f"suite {suite!r} does not match the key's declared scheme "
+                f"{declared_single!r}")
+        return {"valid": ok and not errors, "errors": errors, "suite": suite,
+                "composite": False, "halves": {"primary": ok, "counter": False}}
+
     if not manifest.get("countersignature"):
         errors.append(f"suite {suite!r} is declared and no countersignature is present")
     if not counter_id:
