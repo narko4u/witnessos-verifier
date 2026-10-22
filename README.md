@@ -15,17 +15,12 @@ Standalone verifier for WitnessOS evidence. It checks event and manifest signatu
 | E0 | No events loaded (grade-derivation API) |
 | E1 | Events loaded |
 | E2 | E1 plus valid event/manifest signatures, chain, sequence and signed batch binding |
-<<<<<<< HEAD
 | E3 | E2 plus corroboration: a party other than the deployment, whose identity the verifier establishes from its own trust input, confirming the outcome and bound to this action |
-| E4 | E3 plus bound inclusion proof, authenticated timestamp and authenticated WORM retention evidence |
+| E4 | E3 plus bound inclusion proof and an authenticated timestamp, anchored to operator-provisioned TSA trust roots |
 
-E3 is an appraisal, not an event type. The verifier reads the acknowledgement's provider signature, resolves that key only from the operator's trust input, checks it is not one of the bundle's own signing keys, checks the acknowledgement names the provider's own record, and checks it commits to this case's prior events. An acknowledgement the deployment wrote and signed is the deployment agreeing with itself and grades E2. See CORROBORATION.md. E4 requires operator-provisioned TSA trust roots and an independently signed storage-custodian receipt over the timestamped snapshot. A matching local WORM checksum is not immutability evidence.
-=======
-| E3 | E2 plus a signed event recording provider acknowledgement |
-| E4 | E3 plus bound inclusion proof, authenticated timestamp and an intact WORM evidence copy |
+E3 is an appraisal, not an event type. The verifier reads the acknowledgement's provider signature, resolves that key only from the operator's trust input, checks it is not one of the bundle's own signing keys, checks the acknowledgement names the provider's own record, and checks it commits to this case's prior events and to the action it claims. One provider record cannot substantiate two actions: the first claimant in sealed event order owns it. An acknowledgement the deployment wrote and signed is the deployment agreeing with itself and grades E2. See CORROBORATION.md.
 
-The anchor is the cryptography: the signature, the RFC 3161 timestamp and the Merkle inclusion proof, verified directly by the parties to the record. E3 records the signer's claim about a provider response; it does not independently authenticate a provider or query a live service. E4 requires operator-provisioned TSA trust roots and an intact WORM evidence copy of the timestamped snapshot. A signed retention receipt from a custodian you trust is recorded and reported as an attribute of the bundle. It is made a requirement only where your policy sets `require_retention`. A matching local WORM checksum is not immutability evidence.
->>>>>>> origin/main
+The anchor is the cryptography: the signature, the RFC 3161 timestamp and the Merkle inclusion proof, verified directly by the parties to the record. A signed retention receipt from a custodian you trust is recorded and reported as an attribute of the bundle. It is made a requirement only where your policy sets `require_retention`, and even then it changes the receipt's custody verdict rather than its evidence grade. A matching local WORM checksum is not immutability evidence.
 
 The CLI returns exit 1 when supplied evidence fails or cannot be verified. A lower grade may describe checks that passed; it does not override an invalid bundle result.
 
@@ -61,24 +56,37 @@ witnessos-verifier --version
 
 ## Example fixtures
 
-Fixtures are unchanged from the upstream review except `e4-stripe-refund`, whose
-events/root/proof/timestamp were regenerated on 2026-09-08 so canonical events
-reproduce the signed Merkle root (previously the root binding failed, capping the
-lane at E1).
+There are two families of fixture, and they answer different questions.
 
-<<<<<<< HEAD
-- `e4-gmail-approved-send`: signatures and signed event-root binding pass; the real FreeTSA signature passes with operator trust, but an independent retention receipt is missing. E2, invalid bundle, exit 1.
-- `e4-stripe-refund`: canonical events now reproduce the signed Merkle root (fixture regenerated 2026-09-08); event signatures and the real FreeTSA signature pass with operator trust, but an independent retention receipt is missing. E2, invalid bundle, exit 1.
-=======
-- `e4-gmail-approved-send`: signatures and signed event-root binding pass. Verified against the real FreeTSA service under the bundled `tests/public_tsa_certificates/two-party-standard.json` policy: E4, exit 0.
-- `e4-stripe-refund`: canonical events reproduce the signed Merkle root (fixture regenerated 2026-09-08). Verified under the same policy: E4, exit 0.
->>>>>>> origin/main
+**Canonical packages** (`fixtures/canonical-e2`, `canonical-e3`, `canonical-e4`) are
+minted by the WitnessOS engine with `witnessos-gateway/scripts/gen_verifier_fixtures.py`
+and committed frozen. Each carries a governed-effect chain: request, policy permit,
+dispatch, execution and, where the package is meant to be corroborated, a provider
+attestation bound to a retained provider record. Each carries a real RFC 3161 token
+signed by a fixture TSA.
 
-Both fixtures reach E4 on the cryptography alone, with no custodian in the loop. Under
-`tests/public_tsa_certificates/two-party-requiring-custody.json`, which sets `require_retention`,
-both fall to E3 and exit 1, because no authenticated retention receipt is present. With no trust
-policy the timestamp cannot be authenticated, so both are E3 and exit 1. Do not present the test
-custodian as real WORM custody.
+The grade is never written into the package. The verifier derives it:
+
+- `canonical-e2`: governed action, no independent corroboration. E2, exit 1.
+- `canonical-e3`: corroborated, but the fixture CA is not published, so the anchor
+  cannot authenticate and cannot lift the grade. E3, exit 1.
+- `canonical-e4`: corroborated and the anchor authenticates against the fixture CA
+  under `scripts/canonical_policy.py`. E4, exit 0.
+
+Because the TSA and its CA both live in the tree, no test or gate touches a public
+TSA or CRL. The release gate builds each package's operator policy at run time and
+asserts the derived grade.
+
+**Legacy fixtures** (`e4-gmail-approved-send`, `e4-stripe-refund`) are kept as a
+negative regression. Their chain is a request, a policy decision, an approval, a
+dispatch, a legacy provider confirmation and an anchor, with no executed action and
+no attestation bound to a retained provider record. That is not corroboration
+under the hardened model, so both are E2 and exit 1, whatever their names say.
+`test_legacy_provider_confirmed_chain_cannot_self_promote_to_e3_or_e4` asserts it.
+
+The historical claim that both legacy fixtures reached E4 under a live FreeTSA
+policy described the previous evidence model. It is recorded here so the change is
+legible, not repeated as a current claim.
 
 ## Development
 

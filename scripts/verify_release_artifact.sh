@@ -140,13 +140,17 @@ say "declared       : $DECLARED_VERSION"
 # ---------------------------------------------------------------------------
 step "Assertion 3: the shipped fixtures grade as documented"
 
-CERTS="$REPO_ROOT/tests/public_tsa_certificates"
-POLICY_TWO_PARTY="$CERTS/two-party-standard.json"
-POLICY_CUSTODY="$CERTS/two-party-requiring-custody.json"
-TSA_URL="https://freetsa.org/tsr"
+# The canonical packages carry a fixture TSA, so the gate stays offline: the
+# policy and the CA both live in the tree and no public TSA has to answer.
+POLICY_DIR="$TMP/policies"
+mkdir -p "$POLICY_DIR"
+TSA_URL="https://tsa.fixture.invalid/tsr"
 
-[ -f "$POLICY_TWO_PARTY" ] || fail "missing profile policy: $POLICY_TWO_PARTY"
-[ -f "$POLICY_CUSTODY" ]   || fail "missing profile policy: $POLICY_CUSTODY"
+for name in canonical-e2 canonical-e3 canonical-e4; do
+  "$ROOM/bin/python" "$REPO_ROOT/scripts/canonical_policy.py" \
+    "$name" "$POLICY_DIR/$name.json" \
+    || fail "could not build the operator policy for $name"
+done
 
 check_case() {
   # check_case <fixture> <label> <expected-grade> <expected-exit> [policy] 
@@ -187,15 +191,24 @@ except Exception:
   fi
 }
 
-for fixture in e4-gmail-approved-send e4-stripe-refund; do
+# The canonical ladder, each grade derived from facts rather than declared. The
+# anchor in canonical-e4 authenticates against the fixture CA; in canonical-e3 and
+# canonical-e2 the same token is present but no CA is published, so it cannot
+# lift the grade.
+for name in canonical-e4 canonical-e3 canonical-e2; do
+  fixture="$name/bundle"
   [ -d "$REPO_ROOT/fixtures/$fixture" ] || { fail "missing fixture: $fixture"; continue; }
-  # WOS-E4-TWO-PARTY: E4 on the cryptography alone, no third party in the loop.
-  check_case "$fixture" "WOS-E4-TWO-PARTY"          "E4" 0 "$POLICY_TWO_PARTY"
-  # WOS-E4-TWO-PARTY-RETENTION: retention is demanded, no receipt is present.
-  check_case "$fixture" "WOS-E4-TWO-PARTY-RETENTION" "E3" 1 "$POLICY_CUSTODY"
-  # No policy at all: the TSA cannot be authenticated, so it caps at E3.
-  check_case "$fixture" "no operator policy"         "E3" 1 ""
+  case "$name" in
+    canonical-e4) want="E4"; want_exit=0 ;;
+    canonical-e3) want="E3"; want_exit=1 ;;
+    canonical-e2) want="E2"; want_exit=1 ;;
+  esac
+  check_case "$fixture" "canonical ladder" "$want" "$want_exit" "$POLICY_DIR/$name.json"
 done
+
+# The pre-audit shape stays in the tree and stays below E3: a legacy provider
+# confirmation is not corroboration, however it is labelled.
+check_case "e4-stripe-refund" "legacy shape cannot self-promote" "E2" 1 ""
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
