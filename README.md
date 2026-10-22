@@ -15,10 +15,17 @@ Standalone verifier for WitnessOS evidence. It checks event and manifest signatu
 | E0 | No events loaded (grade-derivation API) |
 | E1 | Events loaded |
 | E2 | E1 plus valid event/manifest signatures, chain, sequence and signed batch binding |
+<<<<<<< HEAD
+| E3 | E2 plus corroboration: a party other than the deployment, whose identity the verifier establishes from its own trust input, confirming the outcome and bound to this action |
+| E4 | E3 plus bound inclusion proof, authenticated timestamp and authenticated WORM retention evidence |
+
+E3 is an appraisal, not an event type. The verifier reads the acknowledgement's provider signature, resolves that key only from the operator's trust input, checks it is not one of the bundle's own signing keys, checks the acknowledgement names the provider's own record, and checks it commits to this case's prior events. An acknowledgement the deployment wrote and signed is the deployment agreeing with itself and grades E2. See CORROBORATION.md. E4 requires operator-provisioned TSA trust roots and an independently signed storage-custodian receipt over the timestamped snapshot. A matching local WORM checksum is not immutability evidence.
+=======
 | E3 | E2 plus a signed event recording provider acknowledgement |
 | E4 | E3 plus bound inclusion proof, authenticated timestamp and an intact WORM evidence copy |
 
 The anchor is the cryptography: the signature, the RFC 3161 timestamp and the Merkle inclusion proof, verified directly by the parties to the record. E3 records the signer's claim about a provider response; it does not independently authenticate a provider or query a live service. E4 requires operator-provisioned TSA trust roots and an intact WORM evidence copy of the timestamped snapshot. A signed retention receipt from a custodian you trust is recorded and reported as an attribute of the bundle. It is made a requirement only where your policy sets `require_retention`. A matching local WORM checksum is not immutability evidence.
+>>>>>>> origin/main
 
 The CLI returns exit 1 when supplied evidence fails or cannot be verified. A lower grade may describe checks that passed; it does not override an invalid bundle result.
 
@@ -59,8 +66,13 @@ events/root/proof/timestamp were regenerated on 2026-09-08 so canonical events
 reproduce the signed Merkle root (previously the root binding failed, capping the
 lane at E1).
 
+<<<<<<< HEAD
+- `e4-gmail-approved-send`: signatures and signed event-root binding pass; the real FreeTSA signature passes with operator trust, but an independent retention receipt is missing. E2, invalid bundle, exit 1.
+- `e4-stripe-refund`: canonical events now reproduce the signed Merkle root (fixture regenerated 2026-09-08); event signatures and the real FreeTSA signature pass with operator trust, but an independent retention receipt is missing. E2, invalid bundle, exit 1.
+=======
 - `e4-gmail-approved-send`: signatures and signed event-root binding pass. Verified against the real FreeTSA service under the bundled `tests/public_tsa_certificates/two-party-standard.json` policy: E4, exit 0.
 - `e4-stripe-refund`: canonical events reproduce the signed Merkle root (fixture regenerated 2026-09-08). Verified under the same policy: E4, exit 0.
+>>>>>>> origin/main
 
 Both fixtures reach E4 on the cryptography alone, with no custodian in the loop. Under
 `tests/public_tsa_certificates/two-party-requiring-custody.json`, which sets `require_retention`,

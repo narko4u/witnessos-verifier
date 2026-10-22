@@ -11,20 +11,47 @@ Verifies a complete WitnessOS evidence bundle end-to-end.
 
 import hashlib
 import json
+import os
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 from .binding import verify_event_signatures, verify_batch_binding
 from .case_chain import verify_case_chain, ChainResult
+from .anchor_coverage import load_records, qualifying_chain, verify_coverage
+from .appraisal import PRIMARY_ACTION_TYPES
+from . import provider_attestation as pa
+from .corroboration import ACTION_TYPES, CorroborationResult, assess_actions, assess_corroboration
 from .events import load_events, Event, EventError
-from .grades import derive_grade, GradeResult
+from .evidence_semantics import enforcement_observed, observation_external
+from .grades import derive_action_grades, derive_grade, ActionGradeResult, Grade, GradeResult
 from .key_registry import KeyRegistry, KeyRegistryError
 from .ledger import verify_ledger_sequence, LedgerResult
 from .manifest import BatchManifest, verify_manifest, ManifestResult
 from .timestamp import verify_timestamp, TimestampResult
 from .worm import verify_worm_bundle, WormResult
+
+
+def _utc_instant(value) -> Optional[datetime]:
+    """Parse an RFC 3161 genTime or a manifest signed_at into an aware UTC instant.
+
+    Returns None rather than guessing when the value is absent, naive or malformed:
+    an unparseable time is not evidence of a temporal violation.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
 
 
 logger = logging.getLogger(__name__)
@@ -47,8 +74,14 @@ class VerifyResult:
     chain_result: Optional[ChainResult] = None
     ledger_result: Optional[LedgerResult] = None
     manifest_result: Optional[ManifestResult] = None
+    corroboration: Optional[CorroborationResult] = None
     timestamp_result: Optional[TimestampResult] = None
     worm_result: Optional[WormResult] = None
+    action_grades: dict = field(default_factory=dict)
+    action_basis: dict = field(default_factory=dict)
+    action_reasons: dict = field(default_factory=dict)
+    subject_action_id: Optional[str] = None
+    anchor_coverages: List[object] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
 
@@ -120,7 +153,27 @@ class VerifyResult:
         return "\n".join(lines)
 
 
-def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, tsa_url=None, expected_nonce=None) -> VerifyResult:
+def _point_at_provider_records(bundle_path):
+    """Point the adapter at this bundle's frozen provider objects, and remember
+    what was there before so one verification cannot leak into the next."""
+    previous = os.environ.get(pa.PROVIDER_RECORDS_ENV)
+    records_dir = Path(bundle_path) / "provider_records"
+    if records_dir.is_dir():
+        os.environ[pa.PROVIDER_RECORDS_ENV] = str(records_dir)
+    else:
+        os.environ.pop(pa.PROVIDER_RECORDS_ENV, None)
+    return previous
+
+
+def _restore_provider_records(previous) -> None:
+    if previous is None:
+        os.environ.pop(pa.PROVIDER_RECORDS_ENV, None)
+    else:
+        os.environ[pa.PROVIDER_RECORDS_ENV] = previous
+
+
+def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, tsa_url=None,
+           expected_nonce=None, subject_action_id: Optional[str] = None) -> VerifyResult:
     """Verify a WitnessOS evidence bundle.
 
     The bundle must contain:
@@ -189,6 +242,7 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
 
     # 5. Verify manifest
     manifest_result = None
+    manifest = None
     binding_errors = []
     manifest_path = bundle_path / "batch_manifest.json"
     if manifest_path.exists():
@@ -205,14 +259,34 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
     else:
         errors.append("No batch_manifest.json found")
 
-    # 6. Check for provider acknowledgement
-    # Accept BOTH naming conventions: the current engine vocabulary is
-    # dot-separated (provider.acknowledged / provider.confirmed) while older
-    # bundles used underscores (provider_acknowledged / provider_confirmed).
-    has_provider_ack = any(
-        e.event_type in PROVIDER_ACK_TYPES
-        for e in events
-    )
+    # 6. Appraise corroboration. An event type is a claim, so the verifier asks
+    #    whether an independently identified party signed an acknowledgement that
+    #    names its own record and is bound to this action and this batch. A
+    #    bundled key, a provider name and a custody label establish none of that.
+    previous_records = _point_at_provider_records(bundle_path)
+    corroboration = assess_corroboration(events, key_registry, manifest, trust_policy)
+    action_pairs = assess_actions(events, key_registry, manifest, trust_policy)
+    # The vendor-level verdict, with its own codes, so an auditor reads
+    # "provider_amount_mismatch" rather than "corroboration failed".
+    substantive: dict = {}
+    for ack_event in events:
+        if ack_event.event_type not in PROVIDER_ACK_TYPES:
+            continue
+        att = (ack_event.payload or {}).get("provider_corroboration")
+        if not isinstance(att, dict):
+            continue
+        subject = next(
+            (e for e in events if e.event_id == str(att.get("action_event_id"))), None
+        )
+        ok, reasons = pa.substantive_check(
+            att,
+            {"payload": dict(subject.payload or {})} if subject is not None else None,
+            pa.load_provider_records(),
+        )
+        substantive[ack_event.event_id] = [] if ok else list(reasons)
+    _restore_provider_records(previous_records)
+    if corroboration.present and not corroboration.satisfied:
+        warnings.append(f"Corroboration not established: {corroboration.summary()}")
 
     # 7. Verify timestamp token
     timestamp_result = None
@@ -263,19 +337,98 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
         warnings.append("Local WORM checksums do not prove remote retention or immutability.")
 
     # 9. Derive grade
-    grade = derive_grade(
+    # An authenticated token that predates the batch it is paired with proves the
+    # commitment existed before the batch did, which is the opposite of anchoring.
+    anchor_precedes_batch = False
+    if timestamp_result is not None and getattr(timestamp_result, "tst_info", None) is not None:
+        gen_instant = _utc_instant(timestamp_result.tst_info.gen_time)
+        signed_instant = _utc_instant(getattr(manifest, "signed_at", None))
+        if gen_instant is not None and signed_instant is not None:
+            if gen_instant < signed_instant:
+                anchor_precedes_batch = True
+                errors.append(
+                    "Checkpoint precedes the batch it anchors: the token was minted "
+                    f"({timestamp_result.tst_info.gen_time}) before the batch claims to "
+                    f"have been finalised ({manifest.signed_at})"
+                )
+        else:
+            warnings.append(
+                "Could not compare checkpoint time to batch finalisation time; "
+                "anchor ordering was not established"
+            )
+
+    # Coverage is a different property from bundle integrity. The bundle is the
+    # current history; an anchor is a commitment made over a subset of it at one
+    # moment. Appending an event therefore neither inherits the old anchor nor
+    # invalidates it, and each action is graded against the coverage that actually
+    # contains its qualifying chain.
+    coverage_records, coverage_errors = load_records(bundle_path, manifest, events)
+    errors.extend(coverage_errors)
+    coverage_results = []
+    for record in coverage_records:
+        try:
+            coverage_results.append(
+                verify_coverage(
+                    record,
+                    events,
+                    bundle_path,
+                    trust_policy,
+                    tsa_url,
+                    manifest.case_id if manifest is not None else None,
+                )
+            )
+        except Exception as exc:  # a coverage that cannot be checked is not coverage
+            errors.append(f"Anchor coverage {record.checkpoint_id}: {exc}")
+    for coverage in coverage_results:
+        if not coverage.authenticated:
+            for detail in coverage.errors[:2]:
+                warnings.append(f"Anchor {coverage.record.checkpoint_id}: {detail}")
+
+    integrity = derive_grade(
         events_loaded=events_loaded,
         chain_result=chain_result,
         ledger_result=ledger_result,
         manifest_result=manifest_result,
-        has_provider_ack=has_provider_ack,
-        timestamp_result=timestamp_result,
+        corroboration=None,
+        timestamp_result=None,
         worm_result=worm_result,
-        alpha_mode=alpha_mode,
+        alpha_mode=False,
         event_signatures_valid=not signature_errors,
         batch_binding_valid=manifest_result is not None and not any(not e.startswith("Merkle proof:") for e in binding_errors),
         merkle_proof_valid=manifest_result is not None and not any(e.startswith("Merkle proof:") for e in binding_errors),
+        observation_external=observation_external(events, key_registry),
+        enforcement_observed=enforcement_observed(events, key_registry),
         require_retention=bool(getattr(trust_policy, "require_retention", False)),
+    )
+
+    # The governed action is the one that proceeded, not every dispatch step that
+    # carried it there: those steps belong inside the qualifying chain. An
+    # acknowledgement also names its own subject, and a record set that models an
+    # action as a dispatch still has an action to grade, so both sources count.
+    named_actions = set(action_pairs)
+    action_events = [
+        event
+        for event in sorted(events, key=lambda e: int(e.seq))
+        if event.event_type in PRIMARY_ACTION_TYPES or event.event_id in named_actions
+    ]
+    action_result = derive_action_grades(
+        action_events=action_events,
+        action_corroboration=action_pairs,
+        coverage_results=coverage_results,
+        integrity_grade=integrity.grade,
+        chain_of=lambda action, ack: qualifying_chain(action, ack, events),
+        subject_action_id=subject_action_id,
+    )
+
+    grade_value = action_result.evidence_grade
+    if alpha_mode and grade_value == Grade.E4:
+        grade_value = Grade.E3
+        action_result.requirements_met.append("Alpha: E4 evidence present (capped at E3)")
+    grade = GradeResult(
+        grade=grade_value,
+        display=action_result.display(),
+        requirements_met=list(integrity.requirements_met) + list(action_result.requirements_met),
+        requirements_missing=list(integrity.requirements_missing) + list(action_result.requirements_missing),
     )
 
     # Collect all errors
@@ -306,8 +459,20 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
         chain_result=chain_result,
         ledger_result=ledger_result,
         manifest_result=manifest_result,
+        corroboration=corroboration,
         timestamp_result=timestamp_result,
         worm_result=worm_result,
+        action_grades=dict(action_result.action_grades),
+        action_reasons={
+            **{
+                str(action_id): list(getattr(result, 'reasons', ()) or ())
+                for action_id, (_ack, result) in (action_pairs or {}).items()
+            },
+            **{f"substantive:{key}": value for key, value in substantive.items()},
+        },
+        action_basis=dict(action_result.basis),
+        subject_action_id=action_result.subject_action_id,
+        anchor_coverages=coverage_results,
         errors=errors,
         warnings=warnings,
     )

@@ -150,3 +150,29 @@ def build_merkle_tree(leaf_hashes: List[bytes]) -> bytes:
         tree = level
 
     return tree[0]
+
+
+def inclusion_proof(leaf_hashes: List[bytes], index: int) -> List[bytes]:
+    """Sibling hashes from a leaf to the root, under the same duplication rule.
+
+    A tree of size n with an odd node at any level duplicates its last node, so
+    the proof for the last leaf still terminates at the published root.
+    """
+    if not leaf_hashes:
+        raise MerkleError("cannot build a proof for an empty tree")
+    if not 0 <= index < len(leaf_hashes):
+        raise MerkleError(f"leaf index {index} outside tree of size {len(leaf_hashes)}")
+
+    siblings: List[bytes] = []
+    tree = list(leaf_hashes)
+    idx = index
+    while len(tree) > 1:
+        if len(tree) % 2:
+            tree = tree + [tree[-1]]
+        sibling = idx + 1 if idx % 2 == 0 else idx - 1
+        siblings.append(tree[sibling])
+        tree = [
+            node_hash(tree[i], tree[i + 1]) for i in range(0, len(tree), 2)
+        ]
+        idx //= 2
+    return siblings

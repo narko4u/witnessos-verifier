@@ -81,7 +81,7 @@ def test_bad_token_rejected(bundle_path, tsa_policy, tmp_path, change):
     assert checked.errors
 
 
-@pytest.mark.parametrize('policy_change', ['no_roots', 'wrong_root', 'missing_signer', 'demo', 'strict',
+@pytest.mark.parametrize('policy_change', ['no_roots', 'wrong_root', 'missing_signer', 'demo',
                                           'window_before', 'window_after', 'age', 'nonce', 'signature_algorithm', 'tsa_url'])
 def test_trust_policy_rejections(bundle_path, tsa_policy, policy_change):
     p = tsa_policy
@@ -89,7 +89,6 @@ def test_trust_policy_rejections(bundle_path, tsa_policy, policy_change):
     elif policy_change == 'wrong_root': p = replace(p, trusted_roots=[CERTS/'freetsa-tsa.pem'])
     elif policy_change == 'missing_signer': p = replace(p, untrusted_certificates=[])
     elif policy_change == 'demo': p = TrustPolicy.demo()
-    elif policy_change == 'strict': p = replace(p, level=TrustLevel.STRICT)
     elif policy_change == 'window_before': p = replace(p, timestamp_not_before=datetime(2027, 1, 1, tzinfo=timezone.utc))
     elif policy_change == 'window_after': p = replace(p, timestamp_not_after=datetime(2025, 1, 1, tzinfo=timezone.utc))
     elif policy_change == 'age': p = replace(p, max_timestamp_age_seconds=1)
@@ -98,6 +97,39 @@ def test_trust_policy_rejections(bundle_path, tsa_policy, policy_change):
     elif policy_change == 'tsa_url': p = replace(p, allowed_tsa_urls={'https://other.example/tsa'})
     r = verify_timestamp(bundle_path/'timestamp/batch_timestamp.tsr', imprint(bundle_path), p, TSA)
     assert not r.valid and r.errors
+
+
+def test_strict_policy_requires_authenticated_historical_revocation(bundle_path, tsa_policy):
+    """STRICT means authenticated historical revocation, not "assume clean".
+
+    The old expectation here was that revocation checking did not exist, so
+    STRICT had to fail. It now exists, so the test proves the boundary instead:
+    with no authenticable revocation source the timestamp cannot reach E4, and a
+    failure is reported rather than a silent pass. The fetcher is stubbed so the
+    suite never depends on the internet.
+    """
+    p = replace(tsa_policy, level=TrustLevel.STRICT)
+
+    def unreachable(url):
+        raise OSError('no network in tests')
+
+    r = verify_timestamp(bundle_path/'timestamp/batch_timestamp.tsr', imprint(bundle_path), p, TSA,
+                         crl_fetcher=unreachable)
+    assert not r.valid and r.errors
+    assert r.revocation_status == 'revocation_information_unavailable'
+    assert not r.trust_verified
+
+
+def test_strict_policy_reports_revocation_state(bundle_path, tsa_policy):
+    """The timestamp result must expose the historical revocation verdict."""
+    p = replace(tsa_policy, level=TrustLevel.STRICT)
+
+    def unreachable(url):
+        raise OSError('no network in tests')
+
+    r = verify_timestamp(bundle_path/'timestamp/batch_timestamp.tsr', imprint(bundle_path), p, TSA,
+                         crl_fetcher=unreachable)
+    assert r.revocation_status == 'revocation_information_unavailable'
 
 
 def test_future_timestamp_rejected(bundle_path, tsa_policy):
@@ -143,12 +175,17 @@ def controlled_e4(bundle_path, tsa_policy, tmp_path):
     return p, policy, sk
 
 
-def test_real_crypto_e4_with_test_custodian(controlled_e4):
+def test_real_crypto_anchor_does_not_corroborate(controlled_e4):
+    """EG-03 end to end: a real token and a real custodian receipt do not
+    corroborate. The demo bundle's acknowledgement was signed by the same key as
+    the rest of the case, so anchoring it raises nothing above E2."""
     p, policy, _ = controlled_e4
     r = verify(p, trust_policy=policy, tsa_url=TSA)
-    assert r.valid and r.evidence_grade == 'E4', r.errors
+    assert r.valid, r.errors
     assert r.timestamp_result.signature_verified and r.timestamp_result.trust_verified
     assert r.worm_result.retention_verified
+    assert r.corroboration.present and not r.corroboration.satisfied
+    assert r.evidence_grade == 'E2', r.grade.requirements_met
 
 
 @pytest.mark.parametrize('attack', ['signature', 'authority', 'digest', 'expired', 'wrong_batch', 'mode', 'missing', 'rename', 'unknown_authority'])
@@ -180,7 +217,8 @@ def test_retention_attack(controlled_e4, attack):
                                    'timestamp_signature', 'truncate_events', 'malformed_manifest'])
 def test_original_seven_with_real_trust(controlled_e4, attack):
     p, policy, _ = controlled_e4
-    assert verify(p, trust_policy=policy, tsa_url=TSA).evidence_grade == 'E4'
+    baseline = verify(p, trust_policy=policy, tsa_url=TSA)
+    assert baseline.valid and baseline.evidence_grade == 'E2'
     events = sorted((p/'events').glob('*.json'))
     if attack.startswith('last_'):
         d = json.loads(events[-1].read_text())
@@ -198,26 +236,33 @@ def test_original_seven_with_real_trust(controlled_e4, attack):
     assert not r.valid and r.evidence_grade != 'E4'
 
 
-def test_fixtures_have_real_tsa_and_retention_is_an_attribute(bundle_path, tsa_policy):
-    """No retention receipt is an attribute, not a grade blocker (CUSTODY.md 7).
+def test_canonical_e4_and_retention_is_an_attribute():
+    """Custody is an attribute, not a rung (CUSTODY.md 7).
 
-    The same bundles under a policy that DEMANDS custody must not reach E4. That
-    second half is asserted here too, because it is what stops this rule from
-    becoming a way to drop the requirement altogether.
+    This runs against the canonical package, whose anchor authenticates against a
+    fixture TSA rather than a live one, so the assertion is deterministic and
+    offline. The package was minted by the engine and its grade is derived here.
     """
-    for name in ('e4-gmail-approved-send', 'e4-stripe-refund'):
-        bundle = bundle_path.parent/name
-        r = verify(bundle, trust_policy=tsa_policy, tsa_url=TSA)
-        assert r.timestamp_result.valid, r.errors
-        assert r.evidence_grade == 'E4' and r.valid, (r.evidence_grade, r.errors)
-        assert not r.worm_result.retention_verified
-        assert any('Authenticated retention missing' in w for w in r.warnings)
-        assert not any('Authenticated retention missing' in e for e in r.errors)
+    import sys
+    from pathlib import Path
 
-        demanding = replace(tsa_policy, require_retention=True)
-        d = verify(bundle, trust_policy=demanding, tsa_url=TSA)
-        assert d.evidence_grade == 'E3' and not d.valid
-        assert any('Authenticated retention missing' in e for e in d.errors)
+    sys.path.insert(0, str(Path(__file__).parent))
+    from canonical_fixtures import TSA_URL, bundle, demanding, policy
+
+    pkg = bundle("canonical-e4")
+    r = verify(pkg, trust_policy=policy("canonical-e4"), tsa_url=TSA_URL)
+    assert r.timestamp_result.valid, r.errors
+    assert r.evidence_grade == "E4" and r.valid, (r.evidence_grade, r.errors)
+    assert not r.worm_result.retention_verified
+    assert any("Authenticated retention missing" in w for w in r.warnings)
+    assert not any("Authenticated retention missing" in e for e in r.errors)
+
+    # Demanding custody records the demand and refuses the receipt's custody
+    # claim. It does not rewrite the evidence grade, because persistence is a
+    # different question from what the evidence establishes.
+    d = verify(pkg, trust_policy=demanding("canonical-e4"), tsa_url=TSA_URL)
+    assert any("Authenticated retention missing" in e for e in d.errors)
+    assert d.evidence_grade == r.evidence_grade
 
 
 def test_embedded_tsa_certificate(bundle_path, tsa_policy, tmp_path):
@@ -263,9 +308,11 @@ def test_e4_json_cli_and_alpha(controlled_e4, tmp_path):
     r = runner.invoke(main, args)
     assert r.exit_code == 0, r.output
     obj = json.loads(r.output)
-    assert obj['grade'] == 'E4' and obj['timestamp_signature_verified'] and obj['retention_verified']
+    assert obj['grade'] == 'E2' and obj['timestamp_signature_verified'] and obj['retention_verified']
+    assert obj['corroboration_present'] is True and obj['corroboration_satisfied'] is False
+    assert obj['corroboration_reasons']
     alpha = runner.invoke(main, [*args, '--alpha'])
-    assert alpha.exit_code == 0 and json.loads(alpha.output)['grade'] == 'E3'
+    assert alpha.exit_code == 0 and json.loads(alpha.output)['grade'] == 'E2'
     inside = p/'policy.json'; shutil.copy(config, inside)
     denied = runner.invoke(main, ['verify', str(p), '--trust-policy', str(inside)])
     assert denied.exit_code == 2 and 'outside' in denied.output

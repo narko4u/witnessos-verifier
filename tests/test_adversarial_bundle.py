@@ -78,24 +78,58 @@ def test_all_ack_vocabulary(vocab):
     assert vocab in PROVIDER_ACK_TYPES
 
 
-@pytest.mark.parametrize('field,expected', [('events_loaded', 'E0'), ('event_signatures_valid', 'E1'), ('batch_binding_valid', 'E1'), ('has_provider_ack', 'E2')])
+@pytest.mark.parametrize(
+    'field,expected',
+    [
+        ('events_loaded', 'E0'),
+        ('observation_external', 'E0'),
+        ('event_signatures_valid', 'E1'),
+        ('batch_binding_valid', 'E1'),
+        ('enforcement_observed', 'E1'),
+        ('corroboration', 'E2'),
+    ],
+)
 def test_cumulative_ladder(field, expected):
     from types import SimpleNamespace as R
+    from witnessos_verifier.corroboration import CorroborationResult
     from witnessos_verifier.grades import derive_grade
+    satisfied = CorroborationResult(
+        present=True,
+        signer_identity="Stripe",
+        signer_identity_verified=True,
+        independent_of_deployment=True,
+        subject_binding_valid=True,
+        provenance_verified=True,
+        replay_check_passed=True,
+        cryptographic_integrity_valid=True,
+    )
     args = dict(events_loaded=True, event_signatures_valid=True, batch_binding_valid=True, merkle_proof_valid=True,
+                observation_external=True, enforcement_observed=True,
                 chain_result=R(valid=True), ledger_result=R(valid=True, sequence_monotonic=True),
-                manifest_result=R(valid=True), has_provider_ack=True,
+                manifest_result=R(valid=True), corroboration=satisfied,
                 timestamp_result=R(valid=True, imprint_matches=True, signature_verified=True, trust_verified=True),
                 worm_result=R(valid=True, retention_verified=True))
     assert derive_grade(**args).grade == 'E4'
-    args[field] = False
+    args[field] = None if field == 'corroboration' else False
     assert derive_grade(**args).grade == expected
 
 
 def test_parsing_and_checksums_do_not_make_e4():
     from types import SimpleNamespace as R
+    from witnessos_verifier.corroboration import CorroborationResult
     from witnessos_verifier.grades import derive_grade
+    satisfied = CorroborationResult(
+        present=True,
+        signer_identity="Stripe",
+        signer_identity_verified=True,
+        independent_of_deployment=True,
+        subject_binding_valid=True,
+        provenance_verified=True,
+        replay_check_passed=True,
+        cryptographic_integrity_valid=True,
+    )
     result = derive_grade(True, R(valid=True), R(valid=True, sequence_monotonic=True),
-                          R(valid=True), True, R(valid=True, imprint_matches=True), R(valid=True),
-                          event_signatures_valid=True, batch_binding_valid=True)
+                          R(valid=True), satisfied, R(valid=True, imprint_matches=True), R(valid=True),
+                          event_signatures_valid=True, batch_binding_valid=True,
+                          observation_external=True, enforcement_observed=True)
     assert result.grade == 'E3'

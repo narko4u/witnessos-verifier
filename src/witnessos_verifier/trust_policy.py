@@ -101,6 +101,13 @@ class TrustPolicy:
     # cryptography alone. Set True where custody is a condition of acceptance.
     require_retention: bool = False
 
+    # Independently provisioned corroboration keys, never loaded from a bundle:
+    # raw Ed25519 public key hex -> the party that key belongs to. This is the
+    # only route by which the verifier establishes that an acknowledgement came
+    # from someone other than the deployment. Empty means no acknowledgement can
+    # be attributed, so E3 is unreachable and the grade caps at E2.
+    provider_keys: Dict[str, str] = field(default_factory=dict)
+
     # Required Extended Key Usage
     required_eku: str = OID_TIME_STAMPING
 
@@ -152,6 +159,7 @@ class TrustPolicy:
             max_timestamp_age_seconds=data.get("max_timestamp_age_seconds"),
             retention_authorities=data.get("retention_authorities", {}),
             minimum_retention_seconds=data.get("minimum_retention_seconds", 0),
+            provider_keys=data.get("provider_keys", {}),
             require_retention=data.get("require_retention", False),
             required_eku=data.get("required_eku", OID_TIME_STAMPING),
             allowed_hash_algorithms=set(

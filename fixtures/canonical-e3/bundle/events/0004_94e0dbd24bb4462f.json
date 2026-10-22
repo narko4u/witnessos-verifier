@@ -1,0 +1,45 @@
+{
+  "case_id": "case-canonical-receipt",
+  "event_id": "94e0dbd24bb4462f",
+  "event_type": "provider.attestation",
+  "payload": {
+    "action_event_id": "1a207cd7a79f4c08",
+    "provider_corroboration": {
+      "acknowledgement_event_id": "94e0dbd24bb4462f",
+      "acknowledgement_type": "provider.attestation",
+      "action_event_id": "1a207cd7a79f4c08",
+      "action_event_type": "action.executed",
+      "adapter_id": "stripe.v1",
+      "authentication": {
+        "key_id": "ed068bdbe6080afee21700065aeb634455262109756493029d9b9b951494090d",
+        "method": "ed25519",
+        "proof": "XnsUAqgU+gS9u4GpVgDDWgNtUoX4D8FpH5iylO14U+9R7L0WcIIdJftzzqJoa/sbqSE3/rboaQW5X6rffMu2AQ=="
+      },
+      "case_id": "case-canonical-receipt",
+      "outcome": "succeeded",
+      "prior_events_root": "5ba2f4c9111c242a7745936b945a694e0d2ff6ad0072d2ddd7437685bf859a37",
+      "provider_id": "Stripe",
+      "provider_record_digest": "f233c8e3a751a2d8aad1cdac2213c3a3ec54f7554f8ad8b9c28f79c036c59794",
+      "provider_record_id": "re_canonical_0001",
+      "version": "witnessos.provider-attestation.v1"
+    },
+    "provider_id": "Stripe",
+    "recorded_at": "2026-10-22T03:59:45.178360+00:00",
+    "spec_version": "1.0"
+  },
+  "prev_hash": "785bfa7d3158c540b8f6aafe2f18cce1b11bc37a7519a90d87942fb4673a3f0e",
+  "seq": 4,
+  "signed": {
+    "algorithm": "Ed25519",
+    "signature": "o91EKZQ1rgmZafXfgP2axqtgZljfRvh7RLXPO0NwvyX4Yt2IwrJQ9+88afa4g7vdli73XX+bpzIATOjJ1F94Ag==",
+    "signed_headers": [
+      "case_id",
+      "event_id",
+      "event_type",
+      "payload",
+      "prev_hash",
+      "seq"
+    ],
+    "signer_key_id": "key_receipt_ledger_20261022_035945_d7bf9e60"
+  }
+}

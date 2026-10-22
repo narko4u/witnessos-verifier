@@ -51,12 +51,13 @@ class CertChainValidator:
     def __init__(self, policy: TrustPolicy):
         self.policy = policy
 
-    def validate(self, signing_cert_der: bytes, intermediate_certs=None, *, verification_time=None):
+    def validate(self, signing_cert_der: bytes, intermediate_certs=None, *,
+                 verification_time=None, revocation_handled_elsewhere: bool = False):
         result = CertChainResult(valid=False)
         try:
             if self.policy.level == TrustLevel.DEMO or not self.policy.trusted_roots:
                 raise ValueError('TSA signature requires operator-configured STANDARD/STRICT trusted roots')
-            if self.policy.requires_revocation_check():
+            if self.policy.requires_revocation_check() and not revocation_handled_elsewhere:
                 raise ValueError('Revocation required but authenticated CRL/OCSP validation is unavailable')
             cert = x509.load_der_x509_certificate(signing_cert_der)
             eku = cert.extensions.get_extension_for_class(x509.ExtendedKeyUsage)
