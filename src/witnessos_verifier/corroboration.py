@@ -28,8 +28,7 @@ fields, and no boolean is accepted from a caller.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence
 
 from .binding import verify_event_signatures
 from .evidence_semantics import ACTION_TYPES
@@ -38,62 +37,9 @@ from .manifest import BatchManifest
 from .merkle import build_merkle_tree, leaf_hash
 from .trust_policy import TrustPolicy
 
-PROVIDER_ACK_TYPES = frozenset(
-    {
-        "provider.acknowledged",
-        "provider.confirmed",
-        "provider.attestation",
-        "provider_acknowledged",
-        "provider_confirmed",
-    }
-)
+from .corroboration_types import PROVIDER_ACK_TYPES, CorroborationResult
 
 _HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
-
-
-@dataclass(frozen=True)
-class CorroborationResult:
-    """What the verifier could establish about external corroboration.
-
-    Every field is a conclusion. None of them is read from a bundle field and
-    none of them can be set by a caller of the verifier.
-    """
-
-    present: bool = False
-    source_party: Optional[str] = None
-    source_type: Optional[str] = None
-    source_record_id: Optional[str] = None
-    source_record_digest: Optional[str] = None
-    signer_identity: Optional[str] = None
-    signer_identity_verified: bool = False
-    independent_of_deployment: bool = False
-    subject_binding_valid: bool = False
-    provenance_verified: bool = False
-    replay_check_passed: bool = False
-    cryptographic_integrity_valid: bool = False
-    reasons: Tuple[str, ...] = ()
-
-    @property
-    def satisfied(self) -> bool:
-        """True only when every condition E3 needs has been established."""
-        return all(
-            (
-                self.present,
-                self.signer_identity_verified,
-                self.independent_of_deployment,
-                self.provenance_verified,
-                self.subject_binding_valid,
-                self.replay_check_passed,
-                self.cryptographic_integrity_valid,
-            )
-        )
-
-    def summary(self) -> str:
-        if not self.present:
-            return "no provider acknowledgement event in the bundle"
-        if self.satisfied:
-            return f"corroborated by {self.source_party} ({self.source_record_id})"
-        return "acknowledgement not corroborating: " + "; ".join(self.reasons or ("unstated",))
 
 
 def _norm_hex(value: object) -> Optional[str]:
