@@ -1,0 +1,17 @@
+{
+  "batch_id": "wos_case_case-canonical-receipt",
+  "signing_key_id": "key_receipt_ledger_20261022_035944_10490e54",
+  "case_id": "case-canonical-receipt",
+  "root": "6d77f4b1ce845628f3c182a75af536b0134cf296b5bc8c2a8ac28640832cb677",
+  "prev_root": "",
+  "event_ids": [
+    "5a310eef067b459b",
+    "9f4995b9e75f4f30",
+    "8b0ebcb0b1b54d61",
+    "c43f9e4e9fc04f7b"
+  ],
+  "start_seq": 0,
+  "end_seq": 3,
+  "signed_at": "2026-10-22T03:59:44.425834+00:00",
+  "signature": "3A+HXFHifOVI0RlLW8a98kEmjIy8AKbU0v5gOcSUPQ0ia6qzr83T1wiIOPHjw1zMArtWTlhrkTg0JzbKIAIEAA=="
+}

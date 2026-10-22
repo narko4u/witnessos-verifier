@@ -27,9 +27,15 @@ def main():
 
     This verifier reads WitnessOS evidence bundles and cryptographically
     checks event signatures, hash chains, and signed batch/Merkle binding.
-    E4 requires an operator trust policy, an authenticated RFC 3161 timestamp,
-    and an intact WORM evidence copy. A signed retention receipt is recorded as
-    an attribute and required only where the policy sets require_retention.
+    E4 requires legitimate E3 evidence plus independently authenticated external
+    anchoring: an operator trust policy, a verified RFC 3161 timestamp and a
+    Merkle inclusion proof over corroborated, action-scoped evidence.
+
+    Retention is reported separately. A signed receipt from an independently
+    trusted custodian reports persistence and custody status, and deployment or
+    compliance policy may require one (the policy's require_retention setting),
+    but it is not an evidence-grade rung: its presence or absence never moves the
+    grade.
 
     No gateway, credential broker, or key management code is included.
     """
@@ -65,6 +71,7 @@ def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bo
 
     if output_json:
         import json
+        corr = result.corroboration
         output = {
             "valid": result.valid,
             "grade": result.evidence_grade,
@@ -72,6 +79,34 @@ def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bo
             "chain_valid": result.chain_result.valid if result.chain_result else None,
             "ledger_valid": result.ledger_result.sequence_monotonic if result.ledger_result else None,
             "manifest_valid": result.manifest_result.valid if result.manifest_result else None,
+            "corroboration_present": bool(corr and corr.present),
+            "corroboration_satisfied": bool(corr and corr.satisfied),
+            "corroboration_source_party": corr.source_party if corr else None,
+            "corroboration_source_record_id": corr.source_record_id if corr else None,
+            "corroboration_signer_identity_verified": bool(corr and corr.signer_identity_verified),
+            "corroboration_independent_of_deployment": bool(corr and corr.independent_of_deployment),
+            "corroboration_provenance_verified": bool(corr and corr.provenance_verified),
+            "corroboration_subject_binding_valid": bool(corr and corr.subject_binding_valid),
+            "corroboration_replay_check_passed": bool(corr and corr.replay_check_passed),
+            "corroboration_reasons": list(corr.reasons) if corr else [],
+            "action_grades": dict(result.action_grades),
+            "action_reasons": {key: list(value) for key, value in (result.action_reasons or {}).items()},
+            "action_basis": dict(result.action_basis),
+            "subject_action_id": result.subject_action_id,
+            "anchor_coverages": [
+                {
+                    "checkpoint_id": coverage.record.checkpoint_id,
+                    "batch_id": coverage.record.batch_id,
+                    "case_id": coverage.record.case_id,
+                    "first_seq": coverage.record.first_seq,
+                    "last_seq": coverage.record.last_seq,
+                    "covered_events": len(coverage.record.covered_event_ids),
+                    "authenticated": coverage.authenticated,
+                    "implicit": coverage.record.implicit,
+                    "errors": list(coverage.errors),
+                }
+                for coverage in result.anchor_coverages
+            ],
             "manifest_suite": result.manifest_suite,
             "composite": result.composite,
             "timestamp_valid": result.timestamp_result.valid if result.timestamp_result else None,

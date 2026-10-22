@@ -1,0 +1,10 @@
+{
+  "leaf_index": 0,
+  "tree_size": 4,
+  "leaf_hash": "5b473daaacd1eea9daef10a36855bc9b8740fc7bd084a165d3e84d05e877f8c9",
+  "proof_hashes": [
+    "a7d5d7a15b63e6c52011c90bf36f8d6daf4edf9c4eec2914a7bc3d05c81b2efd",
+    "a25c1cd09c53d9c8e8990f6ca4a92b9c45cbad2a26aa4cf8ed087cf34a7c5b0f"
+  ],
+  "root": "6d77f4b1ce845628f3c182a75af536b0134cf296b5bc8c2a8ac28640832cb677"
+}

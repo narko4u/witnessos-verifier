@@ -1,0 +1,20 @@
+{
+  "batch_id": "wos_case_case-canonical-receipt",
+  "stored_hash": "9b148cb234445e2fde58bb7c2995a02a40cf663272b2080f0c7185886a0dd301",
+  "stored_at": "2026-10-22T03:59:46.254574+00:00",
+  "case_id": "case-canonical-receipt",
+  "file_count": 11,
+  "file_hashes": {
+    "batch_manifest.json": "31ae94cf53b375909ed6ae8f2e16142a63f22582f3ef0b32c05088f98c09cd36",
+    "case_manifest.json": "a27158b470e0ffc8c40b3299cc4e7a6651abdc841f4f94cf015b8573443d617f",
+    "events/0000_0c2e22f4248642cc.json": "f4e41aeb7dc97fe4c5cb679d0cce928be62dd7903544b293321508134aebf3d5",
+    "events/0001_b226c369406c4e0c.json": "5d1c9f6c87e06797d9b040b01c7e854c50dcc15b4dbbc2df64f9d64a356a3b4d",
+    "events/0002_dfee5efed7744207.json": "b4c9914cd1c5e794ab44abd3c9b8f9628a0f0ded257dc6c61b9f1e347c5c0a91",
+    "events/0003_714e29d5ee234007.json": "3cfd950adc9789965adc3e0ac44625f1b47cf4485628a7e8743e8a2464201021",
+    "events/0004_c373f545a7f04a56.json": "82a7a330587e998b0814358f7ce64d9b89f65eefeb0f8f3d8e865ace88aea848",
+    "keys.json": "b74cbb351440d7cd677fe8ebbe10b9af27a9962583932b2dbe8692b88e8f8dac",
+    "merkle_proof.json": "f2c4e016095daec6489ac945840fbae7caff0d5562de81e1df23e21477f755e7",
+    "provider_records/re_canonical_0001.json": "82ae1c1da3fb19a4a3acc0cb824223f63c0b2067105a5cca634ee3ca1e2acc62",
+    "timestamp/batch_timestamp.tsr": "53446add40fb46bf5e92be2caf45d4fe0f6df324750c8fd28ec13a1f56113b4f"
+  }
+}

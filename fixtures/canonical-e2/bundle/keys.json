@@ -1,0 +1,9 @@
+[
+  {
+    "key_id": "key_receipt_ledger_20261022_035944_10490e54",
+    "public_key_hex": "10490e54b12053f9f2704dbc6724aef782680fc06cf6cc82eafd62329e1d7d2a",
+    "status": "active",
+    "algorithm": "ed25519",
+    "created_at": "2026-10-22T03:59:44.292230+00:00"
+  }
+]

@@ -1,0 +1,35 @@
+{
+  "case_id": "case-canonical-receipt",
+  "event_id": "1a207cd7a79f4c08",
+  "event_type": "action.executed",
+  "payload": {
+    "action_type": "stripe.refund.create",
+    "effect": {
+      "action_type": "stripe.refund.create",
+      "amount": 1200,
+      "created_at": 1760999990,
+      "currency": "AUD",
+      "outcome": "succeeded",
+      "target_id": "pi_canonical_0001"
+    },
+    "executed_at": "2026-10-22T03:59:45.169440Z",
+    "outcome": "success",
+    "spec_version": "1.0",
+    "target": "stripe"
+  },
+  "prev_hash": "34c1c8f7b6dcf06cecf4f0974ad9b9ae77759939cbe400d86c1b2224124766b8",
+  "seq": 3,
+  "signed": {
+    "algorithm": "Ed25519",
+    "signature": "7VYV0H4a3GzFxBgjHfs9HqvjoSHRIe4ln2yEk152N4LaG9ewnT4rMrkmOajAABJl9d+CCGT2gdLkonw/3UsYDQ==",
+    "signed_headers": [
+      "case_id",
+      "event_id",
+      "event_type",
+      "payload",
+      "prev_hash",
+      "seq"
+    ],
+    "signer_key_id": "key_receipt_ledger_20261022_035945_d7bf9e60"
+  }
+}

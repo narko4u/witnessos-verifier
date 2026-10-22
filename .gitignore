@@ -12,3 +12,4 @@ dist/
 scripts/*
 !scripts/verify_release_artifact.sh
 !scripts/declared_version.py
+!scripts/canonical_policy.py

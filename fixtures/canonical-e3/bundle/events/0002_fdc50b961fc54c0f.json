@@ -1,0 +1,24 @@
+{
+  "case_id": "case-canonical-receipt",
+  "event_id": "fdc50b961fc54c0f",
+  "event_type": "dispatch.started",
+  "payload": {
+    "permit_jti": "permit-canonical",
+    "timestamp": "2026-10-22T03:59:45.165067Z"
+  },
+  "prev_hash": "89d286a61864ffd57eafa71dfd1425d0e508264dc75a10f744ae9cd92f7fdf8a",
+  "seq": 2,
+  "signed": {
+    "algorithm": "Ed25519",
+    "signature": "LZwTZlfq7vtKsFMnI/iHKLiBQCzTrTx8gNePuvGXowNo50uD32QmQwj3spOxCyMvJxiB4qbOQ4GhSAguxGHtBw==",
+    "signed_headers": [
+      "case_id",
+      "event_id",
+      "event_type",
+      "payload",
+      "prev_hash",
+      "seq"
+    ],
+    "signer_key_id": "key_receipt_ledger_20261022_035945_d7bf9e60"
+  }
+}

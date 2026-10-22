@@ -1,0 +1,32 @@
+{
+  "case_id": "case-canonical-receipt",
+  "event_id": "b226c369406c4e0c",
+  "event_type": "policy.evaluated",
+  "payload": {
+    "decision": "allow",
+    "matched_action_type": "",
+    "policy_bundle_hash": "",
+    "policy_engine_version": "1.0",
+    "policy_pack_hash": "",
+    "policy_pack_id": "",
+    "policy_pack_version": "",
+    "risk_tier": null,
+    "rule_id": "refund-under-threshold",
+    "timestamp": "2026-10-22T03:59:46.158286Z"
+  },
+  "prev_hash": "985f2ffe9bfc1be2f774a4024aeb880bb766cf0e92bcbd01959216232a7496b3",
+  "seq": 1,
+  "signed": {
+    "algorithm": "Ed25519",
+    "signature": "4FfStvocJtjFnQciVkGcEhms4mhj+7thsfyvOSa4e8Xu802Cqy1MTs7lIA9nTz14GkClSkGiSdH3F13/qQpjCA==",
+    "signed_headers": [
+      "case_id",
+      "event_id",
+      "event_type",
+      "payload",
+      "prev_hash",
+      "seq"
+    ],
+    "signer_key_id": "key_receipt_ledger_20261022_035946_d693b736"
+  }
+}

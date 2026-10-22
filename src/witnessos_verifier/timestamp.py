@@ -57,6 +57,14 @@ class TimestampResult:
     imprint_matches: bool = False
     errors: List[str] = field(default_factory=list)
     trust_policy_result: Optional[TrustPolicyResult] = None
+    # Historical revocation as at genTime. `revocation_status` carries the
+    # four-state value; "not_checked" means the operator policy did not require
+    # it, which is neither a pass nor a failure for E4 eligibility.
+    revocation_checked: bool = False
+    revocation_status: Optional[str] = None
+    revocation_reason: Optional[str] = None
+    revocation_source: Optional[str] = None
+    revocation_time: Optional[str] = None
 
     @property
     def trust_checks_passed(self) -> bool:
@@ -91,6 +99,7 @@ def verify_timestamp(
     *,
     expected_nonce: Optional[int] = None,
     now=None,
+    crl_fetcher=None,
 ) -> TimestampResult:
     """Authenticate a TimeStampResp against independently configured TSA roots.
 
@@ -175,7 +184,7 @@ def verify_timestamp(
         if policy.level == TrustLevel.DEMO or not policy.trusted_roots:
             raise ValueError('TSA signature requires operator-configured STANDARD/STRICT trusted roots')
         if policy.requires_revocation_check():
-            raise ValueError('Revocation required but authenticated CRL/OCSP validation is unavailable')
+            pass  # historical revocation is established below, once the signer cert is resolved
         signers = sd['signer_infos']
         if len(signers) != 1:
             raise ValueError('Timestamp must have exactly one CMS signer')
@@ -204,12 +213,45 @@ def verify_timestamp(
             raise ValueError('TSA signer certificate missing or ambiguous; supply untrusted_certificates')
         selected = matches[0]
         chain = [c.dump() for c in certs if c.dump() != selected.dump()]
-        checked = CertChainValidator(policy).validate(selected.dump(), chain, verification_time=gen_time)
+        checked = CertChainValidator(policy).validate(
+            selected.dump(), chain, verification_time=gen_time, revocation_handled_elsewhere=True
+        )
         if not checked.valid:
             raise ValueError('; '.join(checked.errors))
         # Full RFC 3161/ESS/CMS validation, not just a bare signature operation.
         verify_timestamp_response(raw, expected_hash, policy, gen_time, [c.dump() for c in certs])
         result.cert_chain = [c.dump() for c in certs]
+
+        # Historical revocation, at genTime, from an authenticated CRL. The
+        # question is "was this certificate revoked when it signed", not "is it
+        # revoked now". A CRL we cannot fetch, cannot authenticate, or that
+        # expired before genTime leaves E4 unestablished rather than clean.
+        if policy.requires_revocation_check():
+            from cryptography import x509 as _x509
+
+            from .revocation import RevocationState, check_revocation_at_gentime
+
+            roots = pem_certificates(policy.trusted_roots or []) if policy.trusted_roots else []
+            candidates = [_x509.load_der_x509_certificate(c.dump()) for c in certs] + list(roots)
+            rev = check_revocation_at_gentime(
+                _x509.load_der_x509_certificate(selected.dump()),
+                gen_time,
+                candidates,
+                extra_urls=policy.crl_urls or [],
+                now=now,
+                fetcher=crl_fetcher,
+            )
+            result.revocation_checked = rev.checked
+            result.revocation_status = rev.state.value
+            result.revocation_reason = rev.reason
+            result.revocation_source = rev.source
+            result.revocation_time = (
+                rev.revocation_time.isoformat() if rev.revocation_time else None
+            )
+            if rev.state is not RevocationState.GOOD_AT_GENTIME:
+                raise ValueError(rev.reason or rev.state.value)
+            trust.add_pass(f"Revocation at genTime verified against {rev.source}")
+
         result.signature_verified = True
         result.trust_verified = True
         result.valid = True

@@ -1,0 +1,36 @@
+{
+  "case_id": "case-canonical-receipt",
+  "event_id": "0c2e22f4248642cc",
+  "event_type": "action.requested",
+  "payload": {
+    "action_type": "stripe.refund.create",
+    "agent_id": "agent-canonical",
+    "canonical_request_hash": "sha256:canonical-request",
+    "idempotency_key": null,
+    "operator_id": null,
+    "operator_identity_source": null,
+    "risk_class": "payment",
+    "risk_tier": null,
+    "target_resource": "pi_canonical_0001",
+    "target_system": "stripe",
+    "tenant_config_hash": "",
+    "tenant_config_version": "",
+    "tenant_id": "",
+    "timestamp": "2026-10-22T03:59:46.150565Z"
+  },
+  "prev_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seq": 0,
+  "signed": {
+    "algorithm": "Ed25519",
+    "signature": "0aj0nQKDt4IppJChumxjHOHCMynAvkL/Eo9gqPiMwajgu2GFJN1YI4H+2u7jHG74afk4fecRr/3NfIHKM2HGBA==",
+    "signed_headers": [
+      "case_id",
+      "event_id",
+      "event_type",
+      "payload",
+      "prev_hash",
+      "seq"
+    ],
+    "signer_key_id": "key_receipt_ledger_20261022_035946_d693b736"
+  }
+}
