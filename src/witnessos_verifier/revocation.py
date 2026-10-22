@@ -115,6 +115,8 @@ def _verify_crl_signature(crl, issuer) -> bool:
     except InvalidSignature:
         return False
     except Exception:
+        # A malformed CRL is reported by the caller; the CRL parse must not raise
+        # out of a verification path that already has an error channel.
         pass
     try:
         from cryptography.hazmat.primitives.asymmetric import padding

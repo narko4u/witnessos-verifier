@@ -15,7 +15,6 @@ future change cannot produce the right grade for the wrong reason.
 from __future__ import annotations
 
 import hashlib
-from types import SimpleNamespace
 
 import pytest
 

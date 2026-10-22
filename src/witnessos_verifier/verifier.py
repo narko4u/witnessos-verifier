@@ -23,10 +23,10 @@ from .case_chain import verify_case_chain, ChainResult
 from .anchor_coverage import load_records, qualifying_chain, verify_coverage
 from .appraisal import PRIMARY_ACTION_TYPES
 from . import provider_attestation as pa
-from .corroboration import ACTION_TYPES, CorroborationResult, assess_actions, assess_corroboration
+from .corroboration import CorroborationResult, assess_actions, assess_corroboration
 from .events import load_events, Event, EventError
 from .evidence_semantics import enforcement_observed, observation_external
-from .grades import derive_action_grades, derive_grade, ActionGradeResult, Grade, GradeResult
+from .grades import derive_action_grades, derive_grade, Grade, GradeResult
 from .key_registry import KeyRegistry, KeyRegistryError
 from .ledger import verify_ledger_sequence, LedgerResult
 from .manifest import BatchManifest, verify_manifest, ManifestResult
@@ -339,13 +339,11 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
     # 9. Derive grade
     # An authenticated token that predates the batch it is paired with proves the
     # commitment existed before the batch did, which is the opposite of anchoring.
-    anchor_precedes_batch = False
     if timestamp_result is not None and getattr(timestamp_result, "tst_info", None) is not None:
         gen_instant = _utc_instant(timestamp_result.tst_info.gen_time)
         signed_instant = _utc_instant(getattr(manifest, "signed_at", None))
         if gen_instant is not None and signed_instant is not None:
             if gen_instant < signed_instant:
-                anchor_precedes_batch = True
                 errors.append(
                     "Checkpoint precedes the batch it anchors: the token was minted "
                     f"({timestamp_result.tst_info.gen_time}) before the batch claims to "

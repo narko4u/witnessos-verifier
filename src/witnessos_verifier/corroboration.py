@@ -28,7 +28,7 @@ fields, and no boolean is accepted from a caller.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Tuple
 
 from .binding import verify_event_signatures

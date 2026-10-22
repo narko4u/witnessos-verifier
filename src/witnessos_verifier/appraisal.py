@@ -18,7 +18,6 @@ from typing import Iterable, Mapping, Optional
 
 from . import provider_attestation as pa
 from .case_tree import case_root, signature_bytes
-from .corroboration import PROVIDER_ACK_TYPES, CorroborationResult
 
 PRIMARY_ACTION_TYPES = {
     "action.executed",
@@ -91,6 +90,8 @@ def _deployment_keys(normalised, manifest, registry) -> tuple:
     an identifier resolves to a public key through the bundle's registry the
     hex decides.
     """
+    from .corroboration import PROVIDER_ACK_TYPES  # deferred: a module-level pair would cycle
+
     ids, hexes = set(), set()
 
     def resolve(key_id):
@@ -173,7 +174,12 @@ def _envelope_verifier(provider_keys):
     return verify
 
 
-def assess_corroboration(events, registry=None, manifest=None, policy=None, context_events=None) -> CorroborationResult:
+def assess_corroboration(events, registry=None, manifest=None, policy=None, context_events=None):
+    # Imported here, not at module scope: corroboration calls back into this module
+    # for the canonical appraisal, and a module-level pair of imports would be a
+    # cycle CodeQL flags (and Python resolves by accident of import order).
+    from .corroboration import CorroborationResult, PROVIDER_ACK_TYPES
+
     """Appraise the record set against the canonical corroboration contract.
 
     `context_events` lets a caller appraise a historical prefix (what existed when

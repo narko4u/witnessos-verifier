@@ -17,8 +17,6 @@ TSA: the verifier does not care who the TSA is, only that the operator named it.
 """
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
 import shutil
 import subprocess

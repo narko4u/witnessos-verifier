@@ -15,14 +15,11 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
 
 import pytest
 
 from witnessos_verifier import anchor_coverage
 from witnessos_verifier.anchor_coverage import (
-    load_records,
     qualifying_chain,
     verify_coverage,
 )

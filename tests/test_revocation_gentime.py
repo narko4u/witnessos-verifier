@@ -7,7 +7,6 @@ touches the network and never depends on a third party's uptime.
 """
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa

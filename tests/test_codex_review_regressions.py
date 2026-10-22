@@ -5,9 +5,7 @@ the code as it stood, and each fix is load-bearing only if a test removes it.
 """
 from __future__ import annotations
 
-import copy
 
-import pytest
 
 from witnessos_verifier import corroboration
 from witnessos_verifier.corroboration import assess_corroboration
