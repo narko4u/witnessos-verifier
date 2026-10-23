@@ -32,6 +32,7 @@ from typing import Iterable, List, Optional, Sequence
 
 from .binding import verify_event_signatures
 from .evidence_semantics import ACTION_TYPES
+from .jwt_provider import JwtError, appraise_assertion, load_jwks
 from .key_registry import KeyRegistry
 from .manifest import BatchManifest
 from .merkle import build_merkle_tree, leaf_hash
@@ -51,6 +52,39 @@ def _norm_hex(value: object) -> Optional[str]:
 def _words(value: str) -> str:
     """Normalise a party label for comparison: lowercase words, single spaces."""
     return " ".join(re.sub(r"[^a-z0-9]+", " ", value.lower()).split())
+
+
+def _jwt_identity(token: str, policy) -> Optional[str]:
+    """Return "provider:subject" when the operator's pinned JWKS verifies the token.
+
+    The key is never taken from the bundle. A token that does not verify against
+    a pinned JWKS yields None, and the caller then treats identity as
+    unestablished rather than partially established.
+    """
+    providers = getattr(policy, "provider_jwt_providers", None) or {}
+    if not isinstance(providers, dict):
+        return None
+    for name, cfg in providers.items():
+        if not isinstance(cfg, dict):
+            continue
+        issuer = cfg.get("issuer")
+        audience = cfg.get("audience")
+        jwks_path = cfg.get("jwks_path")
+        if not (issuer and audience and jwks_path):
+            continue
+        try:
+            jwks = load_jwks(jwks_path)
+            assertion = appraise_assertion(
+                token,
+                provider=str(name),
+                issuer=str(issuer),
+                audience=str(audience),
+                jwks=jwks,
+            )
+        except (JwtError, OSError):
+            continue
+        return f"{assertion.provider}:{assertion.subject}"
+    return None
 
 
 def _deployment_signers(
@@ -119,6 +153,20 @@ def _assess_one(event, events, registry, manifest, policy) -> CorroborationResul
     }
     identity = trusted.get(signer_hex) if signer_hex else None
     identity_ok = bool(identity)
+
+    # 2b. Second independent route to identity: an assertion signed with a key
+    #     only the provider holds, published as a JWKS we pinned. Nothing about
+    #     that key is in the bundle, so a verified token is the provider speaking
+    #     rather than the deployment describing itself.
+    jwt_verified = False
+    token = payload.get("provider_jwt")
+    if not identity_ok and isinstance(token, str) and token.count(".") == 2:
+        asserted = _jwt_identity(token, policy)
+        if asserted:
+            identity = asserted
+            identity_ok = True
+            jwt_verified = True
+
     if not identity_ok:
         reasons.append(
             "signing key is not provisioned to a provider identity in the verifier trust policy"
@@ -131,7 +179,7 @@ def _assess_one(event, events, registry, manifest, policy) -> CorroborationResul
     same_key = (signer_hex is not None and signer_hex in deployment_hexes) or (
         isinstance(key_id, str) and key_id in deployment_ids
     )
-    independent = identity_ok and not same_key
+    independent = identity_ok and (jwt_verified or not same_key)
     if identity_ok and not independent:
         reasons.append("acknowledgement was signed by a key the deployment used for its own evidence")
 

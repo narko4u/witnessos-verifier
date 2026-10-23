@@ -133,6 +133,35 @@ def observation_external(events: Iterable, registry=None) -> bool:
     return any(e.event_type not in AGENT_DECLARED_TYPES for e in events)
 
 
+def observer_identity(events: Iterable, observer_keys=None, registry=None) -> Optional[str]:
+    """Return who the recording instrumentation speaks for, when the operator bound it.
+
+    E1 as a shape only says an event was written by something other than the
+    acting agent. E1 as an identity claim needs a trust decision made outside the
+    bundle: a public key the operator provisioned to a named party. This returns
+    that name, or None when no event was signed by such a key.
+    """
+    provisioned = {
+        str(k).strip().lower(): v
+        for k, v in (observer_keys or {}).items()
+        if isinstance(k, str)
+    }
+    if not provisioned or registry is None:
+        return None
+    for event in events:
+        signed = getattr(event, "signed", None)
+        if not isinstance(signed, dict):
+            continue
+        key_id = signed.get("signer_key_id") or signed.get("key_id")
+        if not isinstance(key_id, str):
+            continue
+        record = registry.get_key(key_id)
+        public = getattr(record, "public_key_hex", None) if record is not None else None
+        if isinstance(public, str) and public.strip().lower() in provisioned:
+            return str(provisioned[public.strip().lower()])
+    return None
+
+
 def enforcement_observed(events: Iterable, registry=None) -> bool:
     """True when a permitting decision precedes the action it permits.
 

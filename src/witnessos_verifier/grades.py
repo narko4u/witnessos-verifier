@@ -82,6 +82,8 @@ def derive_grade(
     enforcement_observed: bool = False,
     anchor_precedes_batch: bool = False,
     require_retention: bool = False,
+    require_observer_identity: bool = False,
+    observer_identity: Optional[str] = None,
 ) -> GradeResult:
     """Derive the evidence grade from verification results.
 
@@ -111,6 +113,23 @@ def derive_grade(
         return GradeResult(grade=Grade.E0, display="E0 — Declared",
                           requirements_met=met, requirements_missing=missing)
     met.append("E1: Observed outside the acting agent")
+
+    # E1 as an identity claim, not merely a shape. The operator's provisioned
+    # observer keys are the trust decision; without one, the record still shows
+    # an observation but nobody can say who made it, and a caller that requires
+    # identity gets the floor rather than a plausible rung.
+    if require_observer_identity and not observer_identity:
+        missing.append(
+            "E1: Observer identity not established (no provisioned observer key signed this record)"
+        )
+        return GradeResult(
+            grade=Grade.E0,
+            display="E0 — Declared (observer identity unestablished)",
+            requirements_met=met,
+            requirements_missing=missing,
+        )
+    if observer_identity:
+        met.append(f"E1: Observer identity established ({observer_identity})")
 
     # E2
     e2_ok = True

@@ -108,6 +108,19 @@ class TrustPolicy:
     # be attributed, so E3 is unreachable and the grade caps at E2.
     provider_keys: Dict[str, str] = field(default_factory=dict)
 
+    # Providers that sign their assertion with a key only they hold, published as
+    # a JWKS we pin locally. name -> {issuer, audience, jwks_path}. This is the
+    # second independent route: the RSA key never enters our hands, so a verified
+    # token is the provider speaking, not the deployment describing itself.
+    provider_jwt_providers: Dict[str, Dict[str, str]] = field(default_factory=dict)
+
+    # Observers whose identity the operator has established out of band:
+    # raw public key hex -> who that instrumentation speaks for. E1 as a bare
+    # shape requires none of this. E1 as an identity claim requires a binding,
+    # which is what `require_observer_identity` turns on.
+    observer_keys: Dict[str, str] = field(default_factory=dict)
+    require_observer_identity: bool = False
+
     # Required Extended Key Usage
     required_eku: str = OID_TIME_STAMPING
 
@@ -160,6 +173,16 @@ class TrustPolicy:
             retention_authorities=data.get("retention_authorities", {}),
             minimum_retention_seconds=data.get("minimum_retention_seconds", 0),
             provider_keys=data.get("provider_keys", {}),
+            provider_jwt_providers={
+                str(k): dict(v)
+                for k, v in (data.get("provider_jwt_providers", {}) or {}).items()
+                if isinstance(v, dict)
+            },
+            observer_keys={
+                str(k): str(v)
+                for k, v in (data.get("observer_keys", {}) or {}).items()
+            },
+            require_observer_identity=bool(data.get("require_observer_identity", False)),
             require_retention=data.get("require_retention", False),
             required_eku=data.get("required_eku", OID_TIME_STAMPING),
             allowed_hash_algorithms=set(

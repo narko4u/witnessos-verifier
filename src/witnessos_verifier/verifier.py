@@ -25,7 +25,7 @@ from .appraisal import PRIMARY_ACTION_TYPES
 from . import provider_attestation as pa
 from .corroboration import CorroborationResult, assess_actions, assess_corroboration
 from .events import load_events, Event, EventError
-from .evidence_semantics import enforcement_observed, observation_external
+from .evidence_semantics import enforcement_observed, observation_external, observer_identity
 from .grades import derive_action_grades, derive_grade, Grade, GradeResult
 from .key_registry import KeyRegistry, KeyRegistryError
 from .ledger import verify_ledger_sequence, LedgerResult
@@ -397,6 +397,14 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
         observation_external=observation_external(events, key_registry),
         enforcement_observed=enforcement_observed(events, key_registry),
         require_retention=bool(getattr(trust_policy, "require_retention", False)),
+        require_observer_identity=bool(
+            getattr(trust_policy, "require_observer_identity", False)
+        ),
+        observer_identity=observer_identity(
+            events,
+            getattr(trust_policy, "observer_keys", None),
+            key_registry,
+        ),
     )
 
     # The governed action is the one that proceeded, not every dispatch step that
