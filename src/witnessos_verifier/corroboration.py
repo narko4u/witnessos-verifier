@@ -33,6 +33,7 @@ from typing import Iterable, List, Optional, Sequence
 from .binding import verify_event_signatures
 from .evidence_semantics import ACTION_TYPES
 from .jwt_provider import JwtError, appraise_assertion, load_jwks
+from .sns_provider import SnsError, appraise as appraise_sns
 from .key_registry import KeyRegistry
 from .manifest import BatchManifest
 from .merkle import build_merkle_tree, leaf_hash
@@ -84,6 +85,44 @@ def _jwt_identity(token: str, policy) -> Optional[str]:
         except (JwtError, OSError):
             continue
         return f"{assertion.provider}:{assertion.subject}"
+    return None
+
+
+def _sns_identity(envelope, policy, event, payload) -> Optional[str]:
+    """Return "provider:topic" when SNS signs a binding that matches this ack.
+
+    The binding object AWS signed must name this case and the same provider
+    record the acknowledgement cites. A valid signature over different facts is
+    not corroboration of these facts.
+    """
+    providers = getattr(policy, "sns_providers", None) or {}
+    if not isinstance(providers, dict):
+        return None
+    for name, cfg in providers.items():
+        if not isinstance(cfg, dict):
+            continue
+        cert_path = cfg.get("cert_path")
+        if not cert_path:
+            continue
+        try:
+            assertion = appraise_sns(
+                envelope,
+                cert_path=cert_path,
+                allowed_topic_arn=cfg.get("topic_arn") or None,
+            )
+        except (SnsError, OSError):
+            continue
+        binding = dict(assertion.binding)
+        if str(binding.get("case_id")) != str(event.case_id):
+            continue
+        disagree = False
+        for field in ("provider_record_id", "provider_record_digest", "outcome"):
+            claimed = payload.get(field)
+            if claimed is not None and str(binding.get(field)) != str(claimed):
+                disagree = True
+        if disagree:
+            continue
+        return f"{name}:{assertion.topic_arn}"
     return None
 
 
@@ -167,6 +206,19 @@ def _assess_one(event, events, registry, manifest, policy) -> CorroborationResul
             identity_ok = True
             jwt_verified = True
 
+    # 2c. Third route: the provider signed the binding object itself, and the
+    #     signature is made with a key only that provider holds. AWS SNS is the
+    #     first of these. The binding must agree with what the acknowledgement
+    #     says, so a signed statement cannot be attached to different facts.
+    sns_verified = False
+    envelope = payload.get("provider_sns")
+    if not identity_ok and isinstance(envelope, dict):
+        asserted = _sns_identity(envelope, policy, event, payload)
+        if asserted:
+            identity = asserted
+            identity_ok = True
+            sns_verified = True
+
     if not identity_ok:
         reasons.append(
             "signing key is not provisioned to a provider identity in the verifier trust policy"
@@ -179,7 +231,7 @@ def _assess_one(event, events, registry, manifest, policy) -> CorroborationResul
     same_key = (signer_hex is not None and signer_hex in deployment_hexes) or (
         isinstance(key_id, str) and key_id in deployment_ids
     )
-    independent = identity_ok and (jwt_verified or not same_key)
+    independent = identity_ok and (jwt_verified or sns_verified or not same_key)
     if identity_ok and not independent:
         reasons.append("acknowledgement was signed by a key the deployment used for its own evidence")
 

@@ -114,6 +114,12 @@ class TrustPolicy:
     # token is the provider speaking, not the deployment describing itself.
     provider_jwt_providers: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
+    # Providers that sign the binding object itself with a key only they hold,
+    # delivered over a channel we do not control the signing key for.
+    # name -> {cert_path, topic_arn}. AWS SNS is the first of these: AWS signs
+    # the Message string, so the binding fields are inside the signature.
+    sns_providers: Dict[str, Dict[str, str]] = field(default_factory=dict)
+
     # Observers whose identity the operator has established out of band:
     # raw public key hex -> who that instrumentation speaks for. E1 as a bare
     # shape requires none of this. E1 as an identity claim requires a binding,
@@ -183,6 +189,11 @@ class TrustPolicy:
                 for k, v in (data.get("observer_keys", {}) or {}).items()
             },
             require_observer_identity=bool(data.get("require_observer_identity", False)),
+            sns_providers={
+                str(k): dict(v)
+                for k, v in (data.get("sns_providers", {}) or {}).items()
+                if isinstance(v, dict)
+            },
             require_retention=data.get("require_retention", False),
             required_eku=data.get("required_eku", OID_TIME_STAMPING),
             allowed_hash_algorithms=set(
