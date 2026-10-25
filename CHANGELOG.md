@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.0.0 (2026-10-25)
+
+The Foundation release. The grade semantics did not change from 0.3.x; what changed is
+that this version is the one the Gateway v1.0.0 release is paired with and the one the
+Foundation consumer contract v1.0 was frozen against.
+
+### Changed
+
+- **Version renumbered to 1.0.0** to match the Foundation release it belongs to. The
+  version is single-sourced from `witnessos_verifier.__version__`, so the wheel name
+  and `witnessos-verifier --version` cannot drift apart.
+- **The Foundation profile is the default** for `verify`, and has been since 0.3.4.
+  `--profile legacy` remains available for records issued before the hardened model
+  and is not a supported profile for new evidence.
+
+### Added
+
+- **`grade_cap_reason` is carried in the JSON verdict** alongside `grade`, and the
+  human-readable output names the rung that stopped the ladder. The CLI already
+  reported the grade; a capped grade without the reason is an incomplete answer.
+- **Contract alignment.** The verdict fields the CLI emits are the fields
+  `FOUNDATION-CONTRACT.md` v1.0 names for the verified side: `grade`,
+  `grade_cap_reason`, `grade_scope`, `profile`, `manifest_suite`, `composite`.
+
+### Release
+
+- Wheel and source tarball, `SHA256SUMS` and a detached signature over it, a CycloneDX
+  SBOM, and the exact commit and tag recorded in the release directory.
+- Verified from a clean clone at the tagged commit: install from the lock, full suite,
+  build, then install the built wheel into a fresh environment and verify the shipped
+  sample bundles with no developer state present.
+
 ## 0.3.5 (2026-10-05)
 
 ### Added
