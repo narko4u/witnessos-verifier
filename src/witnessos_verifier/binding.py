@@ -28,11 +28,18 @@ def verify_event_signatures(events, registry):
                 raise ValueError('unsupported signature algorithm')
             if 'signed_headers' in signed and (len(signed['signed_headers']) != len(HEADERS) or set(signed['signed_headers']) != HEADERS):
                 raise ValueError('signature must cover all event fields')
-            key = registry.get_key(key_id) if registry else None
-            if key is None or not key.is_valid:
-                raise ValueError('signing key missing or inactive')
             obj = json.loads(event.canonical_bytes)
             obj.pop('signed', None)
+            key = registry.get_key(key_id) if registry else None
+            if key is None:
+                raise ValueError('signing key missing from the bundle')
+            # The question is whether this key was trustworthy when it signed, not
+            # whether it may sign now. A rotated or expired key keeps its history;
+            # a revoked key keeps only what it signed before the revocation.
+            signed_at = obj.get('timestamp') or (obj.get('payload') or {}).get('timestamp')
+            trustworthy, why = key.valid_at(signed_at)
+            if not trustworthy:
+                raise ValueError(f'signing key was not trustworthy for this event: {why}')
             message = json.dumps(obj, sort_keys=True, separators=(',', ':')).encode()
             if not verify_detached_signature(key.public_key_hex, message, signed['signature']):
                 raise ValueError('invalid Ed25519 signature')

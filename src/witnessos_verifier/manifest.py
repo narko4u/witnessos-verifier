@@ -161,8 +161,11 @@ def verify_manifest(manifest: BatchManifest, key_registry: KeyRegistry) -> Manif
             errors=[f"Key {manifest.signing_key_id} not found in key registry"],
         )
 
-    if not key.is_valid:
-        errors.append(f"Key {manifest.signing_key_id} is {key.status}")
+    # Trustworthiness at signing time, not now: a rotation must not invalidate a
+    # receipt, and a revocation must invalidate only what came after it.
+    key_ok, key_why = key.valid_at(manifest.signed_at)
+    if not key_ok:
+        errors.append(f"Key {manifest.signing_key_id}: {key_why}")
 
     suite = manifest.signature_suite or ""
     labels = manifest.suite_labels
@@ -190,12 +193,14 @@ def verify_manifest(manifest: BatchManifest, key_registry: KeyRegistry) -> Manif
                 errors.append(
                     f"Countersigner key {manifest.countersigner_key_id} not found in key registry"
                 )
-            elif not counter_key.is_valid:
-                errors.append(
-                    f"Countersigner key {manifest.countersigner_key_id} is {counter_key.status}"
-                )
-            elif counter_key.public_key_hex == key.public_key_hex:
-                errors.append("Countersigner key is the primary key")
+            else:
+                if counter_key.public_key_hex == key.public_key_hex:
+                    errors.append("Countersigner key is the primary key")
+                counter_ok, counter_why = counter_key.valid_at(manifest.signed_at)
+                if not counter_ok:
+                    errors.append(
+                        f"Countersigner key {manifest.countersigner_key_id}: {counter_why}"
+                    )
     elif manifest.countersignature:
         # Refusal 2: a counter half with no suite cannot be interpreted.
         errors.append("Manifest carries a countersignature but declares no signature suite")
@@ -232,7 +237,7 @@ def verify_manifest(manifest: BatchManifest, key_registry: KeyRegistry) -> Manif
         valid=len(errors) == 0,
         manifest=manifest,
         key_found=True,
-        key_valid=key.is_valid,
+        key_valid=key_ok,
         signature_valid=sig_valid and counter_valid,
         errors=errors,
         signature_suite=suite,
