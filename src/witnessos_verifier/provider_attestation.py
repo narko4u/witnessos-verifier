@@ -30,7 +30,13 @@ from typing import Callable, Mapping, Optional, Sequence
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from . import governed_binding, ordering
+
 DOMAIN = "WITNESSOS_PROVIDER_CORROBORATION_V1"
+
+# The event that states which action the case authorised, under either naming the
+# engine has used for it.
+REQUESTED_TYPES = frozenset({"action.requested", "foundation.action.requested"})
 
 # Methods that authenticate with a key the provider holds. Only these can
 # establish independence from the deployment on their own.
@@ -114,6 +120,15 @@ class Facts:
     # claimed outcome. Neutral only where no adapter contract governs the
     # operation; never inferred from the attestation's own claims.
     substantive_valid: bool = False
+    # Whether the evidence's own times are possible, and whether it names the
+    # governed action this case actually authorised. Both are re-derived from the
+    # artefact: the issuer's boundary checks are not inherited.
+    ordering_checked: bool = False
+    ordering_valid: bool = False
+    binding_checked: bool = False
+    binding_valid: bool = False
+    ordering_facts: dict = field(default_factory=dict, repr=False, compare=False)
+    binding_facts: dict = field(default_factory=dict, repr=False, compare=False)
     provider_identity: Optional[str] = None
     source_record_id: Optional[str] = None
     reasons: tuple = ()
@@ -136,6 +151,12 @@ class Facts:
             and self.provenance_verified
             and self.replay_check_passed
             and self.cryptographic_integrity_valid
+            # A satisfied attestation is one whose own record of events is
+            # possible and whose named action is the one the case governed.
+            and self.ordering_checked
+            and self.ordering_valid
+            and self.binding_checked
+            and self.binding_valid
             # Substantive agreement with the provider's own state is part of
             # being satisfied, not a separate opinion a caller may ignore.
             and self.substantive_valid
@@ -370,6 +391,63 @@ def verify(attestation: Mapping, ctx: Context) -> Facts:
     if not root_ok:
         reasons.append("attestation does not commit to this case's prior events")
 
+    # Ordering and governed-action identity, re-derived here from the artefact.
+    # The issuer refusing bad order is a boundary check; a relying party holds the
+    # bundle, not the issuer, so the same invariant has to be provable from the
+    # evidence alone.
+    case_events = [e for e in ctx.events if str(e.get("case_id")) == str(ack.get("case_id"))]
+    requested_event = next(
+        (
+            e
+            for e in case_events
+            if str(e.get("event_type")) in REQUESTED_TYPES
+        ),
+        None,
+    )
+    dispatch_event = next(
+        (e for e in case_events if str(e.get("event_type")) == "dispatch.started"),
+        None,
+    )
+    requested_facts = _action_facts(requested_event)
+    effect_facts = _action_facts(action_event) if action_event is not None else {}
+
+    declared_version = (
+        att.get("binding_version")
+        or att.get("action_binding_version")
+        or requested_facts.get("action_binding_version")
+    )
+    requires_v2 = governed_binding.declares_v2(
+        declared_version, att.get("binding_version"), att.get("action_binding_version")
+    )
+
+    ordering_ok, ordering_reasons, ordering_facts = ordering.check(
+        dispatch_at=(dispatch_event or {}).get("payload", {}).get("timestamp")
+        if isinstance((dispatch_event or {}).get("payload"), Mapping)
+        else (dispatch_event or {}).get("timestamp"),
+        effect_started_at=effect_facts.get("started_at"),
+        effect_finished_at=effect_facts.get("finished_at"),
+        asserted_at=att.get("asserted_at"),
+        completion_state=att.get("completion_state") or att.get("outcome"),
+        required=requires_v2,
+    )
+    reasons.extend(ordering_reasons)
+
+    binding_ok, binding_reasons, binding_facts = governed_binding.check(
+        case_id=ack.get("case_id"),
+        declared_version=declared_version,
+        stored_binding=requested_facts.get("action_binding"),
+        attested_binding=att.get("action_binding"),
+        case_external_action_id=requested_facts.get("external_action_id"),
+        effect_external_action_id=effect_facts.get("external_action_id"),
+        attested_external_action_id=att.get("external_action_id"),
+        action_digest=requested_facts.get("canonical_request_hash")
+        or effect_facts.get("action_digest"),
+        action_type=requested_facts.get("action_type") or effect_facts.get("action_type"),
+        target=requested_facts.get("target_system") or effect_facts.get("target"),
+        required=requires_v2,
+    )
+    reasons.extend(binding_reasons)
+
     # Authentication, and with it identity and independence.
     identity = None
     integrity = False
@@ -475,6 +553,12 @@ def verify(attestation: Mapping, ctx: Context) -> Facts:
         provenance_verified=bool(provenance_ok),
         replay_check_passed=bool(root_ok),
         cryptographic_integrity_valid=bool(integrity),
+        ordering_checked=True,
+        ordering_valid=bool(ordering_ok),
+        binding_checked=True,
+        binding_valid=bool(binding_ok),
+        ordering_facts=ordering_facts,
+        binding_facts=binding_facts,
         provider_identity=identity,
         source_record_id=record_id or None,
         reasons=() if (
@@ -486,6 +570,8 @@ def verify(attestation: Mapping, ctx: Context) -> Facts:
             and root_ok
             and integrity
             and ack_ok
+            and ordering_ok
+            and binding_ok
             and substantive_ok
         ) else tuple(dict.fromkeys(reasons)),
     )
