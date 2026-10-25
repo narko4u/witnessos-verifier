@@ -12,6 +12,7 @@ Verifies a complete WitnessOS evidence bundle end-to-end.
 import hashlib
 import json
 import os
+import re
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -62,6 +63,57 @@ PROVIDER_ACK_TYPES = frozenset({"provider.acknowledged", "provider.confirmed",
 
 class VerifyError(Exception):
     """Top-level verification error."""
+
+
+_TRUST_POLICY_WORDS = (
+    "allowlist",
+    "not trusted",
+    "untrusted",
+    "trusted root",
+    "trust anchor",
+    "revocation",
+    "revoked",
+    "crl",
+    "not yet valid",
+    "expired",
+    "tsa url",
+)
+
+
+def _anchor_policy_only(errors) -> bool:
+    """True when every anchor error is the operator's trust judgement.
+
+    A token that commits to our root and parses correctly is evidence a root
+    existed at a time. Whether the signer is one this operator believes is a
+    policy question, and it belongs in the cap reason, not in the verdict. A token
+    that fails its own signature or imprint is damaged, and damaged evidence stays
+    a hard failure no matter what the policy says.
+    """
+    if not errors:
+        return False
+    for message in errors:
+        text = str(message).lower()
+        if "signature" in text or "imprint" in text:
+            return False
+        if not any(word in text for word in _TRUST_POLICY_WORDS):
+            return False
+    return True
+
+
+def _rung_of(item: str) -> Optional[int]:
+    """The rung a requirement line belongs to, or None when it is not a rung.
+
+    Attributes are not rungs: retention custody rides along a receipt and never
+    moves the grade, so a missing attribute must never be quoted as the reason the
+    ladder stopped.
+    """
+    if not isinstance(item, str):
+        return None
+    text = item.strip()
+    if text.lower().startswith("attribute:") or "attribute" in text.split(":")[0].lower():
+        return None
+    match = re.match(r"^E([0-4])(?![0-9])", text)
+    return int(match.group(1)) if match else None
 
 
 @dataclass
@@ -346,6 +398,11 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
     # 9. Derive grade
     # An authenticated token that predates the batch it is paired with proves the
     # commitment existed before the batch did, which is the opposite of anchoring.
+    # A token that failed to verify leaves timestamp_result None, which is
+    # indistinguishable from a bundle that never carried one. The grade text has to
+    # tell those apart, so presence is decided by the files, not by the verdict.
+    anchor_present = ts_dir.exists() and any(ts_dir.glob("*.tsr")) or any(ts_dir.glob("*.der"))
+
     if timestamp_result is not None and getattr(timestamp_result, "tst_info", None) is not None:
         gen_instant = _utc_instant(timestamp_result.tst_info.gen_time)
         signed_instant = _utc_instant(getattr(manifest, "signed_at", None))
@@ -396,6 +453,10 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
         manifest_result=manifest_result,
         corroboration=None,
         timestamp_result=None,
+        # Presence is a fact about the bundle, not about the verdict: a token that
+        # failed to verify and a bundle that never carried one must not produce the
+        # same cap text.
+        anchor_present=anchor_present,
         worm_result=worm_result,
         alpha_mode=False,
         event_signatures_valid=not signature_errors,
@@ -448,16 +509,38 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
     # The profile's own words travel with the verdict. Rebuilding the grade here
     # would otherwise drop the reason a Foundation gate stopped the ladder, and a
     # cap without a reason is indistinguishable from a permissive pass.
+    #
+    # A cap must name the rung that actually stopped the ladder. Two sources can
+    # disagree: the bundle-level integrity grade and the action-level grade. When
+    # the action grade is the higher one, a missing item belonging to a rung the
+    # verdict already passed is stale, and quoting it reads as a contradiction
+    # ("capped at E3: E3: no corroboration was appraised" on a corroborated
+    # record). Rung-filter both the reason and the missing list.
+    combined_met = list(integrity.requirements_met) + list(action_result.requirements_met)
+    combined_missing = list(integrity.requirements_missing) + list(action_result.requirements_missing)
+    awarded_rung = _rung_of(str(grade_value))
+    met_rungs = {_rung_of(item) for item in combined_met}
+    stale = {
+        item
+        for item in combined_missing
+        if _rung_of(item) and _rung_of(item) <= awarded_rung and _rung_of(item) in met_rungs
+    }
+    combined_missing = [item for item in combined_missing if item not in stale]
+    ahead = [
+        item
+        for item in combined_missing
+        if _rung_of(item) is not None and _rung_of(item) > awarded_rung
+    ]
     cap_reason = getattr(integrity.grade, "cap_reason", "") or ""
-    if not cap_reason and action_result.requirements_missing:
-        cap_reason = f"capped at {grade_value}: {action_result.requirements_missing[0]}"
-    if not cap_reason and integrity.requirements_missing:
-        cap_reason = f"capped at {grade_value}: {integrity.requirements_missing[0]}"
+    if cap_reason and stale:
+        cap_reason = ""
+    if not cap_reason and ahead:
+        cap_reason = f"capped at {grade_value}: {ahead[0]}"
     grade = GradeResult(
         grade=grade_value,
         display=action_result.display(),
-        requirements_met=list(integrity.requirements_met) + list(action_result.requirements_met),
-        requirements_missing=list(integrity.requirements_missing) + list(action_result.requirements_missing),
+        requirements_met=combined_met,
+        requirements_missing=combined_missing,
         cap_reason=cap_reason,
     )
 
@@ -469,7 +552,20 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
     if manifest_result and manifest_result.errors:
         errors.extend(manifest_result.errors)
     if timestamp_result and timestamp_result.errors:
-        errors.extend(timestamp_result.errors)
+        # An anchor that commits to our root but whose issuer chain this policy does
+        # not accept is a trust judgement, not damaged evidence: the token proves a
+        # root existed at a time, the operator decides whether to believe the signer.
+        # Failing the artefact outright would make E3 unobservable, since export
+        # refuses an unanchored case. Cap at E3 and say why, keep the errors visible
+        # as warnings. A token that does not match the imprint is damaged and fatal.
+        if (
+            timestamp_result.imprint_matches
+            and not timestamp_result.trust_verified
+            and _anchor_policy_only(timestamp_result.errors)
+        ):
+            warnings.extend(timestamp_result.errors)
+        else:
+            errors.extend(timestamp_result.errors)
     if worm_result and worm_result.errors:
         errors.extend(worm_result.errors)
     if worm_result and getattr(worm_result, "retention_errors", None):

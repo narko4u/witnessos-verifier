@@ -573,7 +573,29 @@ def substantive_check(
             return False, (f"provider_operation_unsupported: no contract for {action_type}",)
         if action_type.lower().startswith("stripe."):
             return False, (f"provider_operation_unsupported: no contract for {action_type}",)
-        # Not an operation any adapter governs: nothing to substantiate here.
+        # No adapter governs this operation, so there is no vendor rule to apply.
+        # A retained provider record is still evidence: where the record travels
+        # with the bundle it must be the object the attestation signed, and one
+        # record substantiates one action. Absent a retained record there is
+        # nothing to contradict, so the generic claim stands unexamined rather
+        # than being failed for a shape it never promised.
+        generic_id = str(attestation.get("provider_record_id") or "").strip()
+        generic_record = records.get(generic_id) if isinstance(records, Mapping) and generic_id else None
+        if isinstance(generic_record, Mapping):
+            if provider_record_digest(generic_record) != str(
+                attestation.get("provider_record_digest") or ""
+            ).strip().lower():
+                return False, (
+                    "provider_record_digest_mismatch: retained object does not hash to the "
+                    "attested digest",
+                )
+            if usage is not None:
+                first = usage.get(generic_id)
+                if first is not None and str(first) != str(ack_id):
+                    return False, (
+                        f"provider_record_reused: {generic_id} already substantiated {first}",
+                    )
+                usage[generic_id] = ack_id
         return True, ()
 
     claimed = str(attestation.get("outcome") or "").strip().lower()

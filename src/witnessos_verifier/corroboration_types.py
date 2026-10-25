@@ -42,6 +42,13 @@ class CorroborationResult:
     provenance_verified: bool = False
     replay_check_passed: bool = False
     cryptographic_integrity_valid: bool = False
+    # The provider's own retained state must support the claimed outcome. Three
+    # states, not two: unexamined (None) when no retained record travelled with
+    # the evidence, True when the record substantiates the claim, False when it was
+    # examined and did not. Only an examined failure blocks the rung; treating
+    # "not looked at" as failure would fail artefacts for missing paperwork, and
+    # treating it as a pass is the defect this field exists to close.
+    substantive_valid: Optional[bool] = None
     reasons: Tuple[str, ...] = ()
 
     @property
@@ -56,6 +63,7 @@ class CorroborationResult:
                 self.subject_binding_valid,
                 self.replay_check_passed,
                 self.cryptographic_integrity_valid,
+                self.substantive_valid is not False,
             )
         )
 

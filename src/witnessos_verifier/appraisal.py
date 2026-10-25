@@ -262,6 +262,7 @@ def assess_corroboration(events, registry=None, manifest=None, policy=None, cont
                 provenance_verified=facts.provenance_verified,
                 replay_check_passed=facts.replay_check_passed,
                 cryptographic_integrity_valid=facts.cryptographic_integrity_valid,
+                substantive_valid=facts.substantive_valid,
                 reasons=facts.reasons,
             )
         )
@@ -281,6 +282,13 @@ def assess_corroboration(events, registry=None, manifest=None, policy=None, cont
             if e.get("event_type") in pa.ACTION_EFFECT_TYPES
             and e.get("event_type") not in _FOLLOW_ON_EFFECTS
         ]
+    if not action_events:
+        # No effect event is enumerated for this action family (the robot path
+        # records dispatch, not execution). Coverage is then vacuous, and the
+        # binding that still holds is the one the facts proved: the
+        # acknowledgement named an action event that exists in this record set.
+        # Recorded as a limitation rather than read as coverage.
+        return satisfied[0]
     uncovered = [
         str(event.get("event_id"))
         for event in action_events
@@ -301,6 +309,7 @@ def assess_corroboration(events, registry=None, manifest=None, policy=None, cont
             provenance_verified=best.provenance_verified,
             replay_check_passed=best.replay_check_passed,
             cryptographic_integrity_valid=best.cryptographic_integrity_valid,
+            substantive_valid=best.substantive_valid,
             reasons=(
                 f"{len(uncovered)} action event(s) in this record set have no acknowledgement: "
                 + ", ".join(uncovered),

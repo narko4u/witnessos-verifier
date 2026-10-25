@@ -60,7 +60,14 @@ class TestE2EVerification:
         # missing receipt no longer appears as a missing requirement.
         result = verify(bundle_path)
         missing = result.grade.requirements_missing
-        assert "E4: RFC 3161 timestamp invalid or missing" in missing, missing
+        # Either wording names the same gap: no usable external anchor. Which one
+        # appears depends on whether the bundle carries a token at all, which is a
+        # fact about the artefact, not about the verdict.
+        assert any(
+            requirement.startswith("E4: authenticated external anchor required")
+            or requirement == "E4: RFC 3161 timestamp invalid or missing"
+            for requirement in missing
+        ), missing
         # The hardened model also names corroboration, which this package cannot
         # establish: it carries no attestation bound to a retained provider record.
         assert any("corroboration" in requirement.lower() for requirement in missing), missing

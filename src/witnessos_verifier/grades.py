@@ -82,6 +82,10 @@ def derive_grade(
     observation_external: bool = False,
     enforcement_observed: bool = False,
     anchor_precedes_batch: bool = False,
+    # Defaults to True: a caller that hands in a timestamp result is describing a
+    # bundle that carries one. Only the verifier knows about a bundle with no token
+    # at all, and it passes the flag explicitly.
+    anchor_present: bool = True,
     require_retention: bool = False,
     require_observer_identity: bool = False,
     observer_identity: Optional[str] = None,
@@ -232,10 +236,20 @@ def derive_grade(
             "E4: Batch claims finalisation after its own checkpoint (anchor cannot cover later evidence)"
         )
         e4_ok = False
-    else:
+    elif timestamp_result is not None:
         met.append("E4: Checkpoint postdates the batch it anchors")
 
-    if timestamp_result and timestamp_result.valid and timestamp_result.imprint_matches and getattr(timestamp_result, "signature_verified", False) and getattr(timestamp_result, "trust_verified", False):
+    if not anchor_present:
+        # No anchor at all is the E3 artefact's normal shape, and it is not the
+        # same fault as an anchor that failed. Saying "invalid or missing" let a
+        # reader think damaged evidence was present when the case simply never
+        # claimed external anchoring.
+        missing.append(
+            "E4: authenticated external anchor required "
+            "(no RFC 3161 timestamp in this bundle)"
+        )
+        e4_ok = False
+    elif timestamp_result is not None and timestamp_result.valid and timestamp_result.imprint_matches and getattr(timestamp_result, "signature_verified", False) and getattr(timestamp_result, "trust_verified", False):
         met.append("E4: RFC 3161 timestamp valid")
     else:
         missing.append("E4: RFC 3161 timestamp invalid or missing")
