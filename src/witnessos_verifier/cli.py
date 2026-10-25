@@ -50,8 +50,12 @@ def main():
 @click.option('--trust-policy', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='Operator policy outside the bundle')
 @click.option('--tsa-url', help='Expected TSA URL from operator configuration')
 @click.option('--expected-nonce', type=int, help='Nonce retained from the original timestamp request')
+@click.option('--profile', type=click.Choice(['foundation', 'legacy']), default='foundation',
+              show_default=True,
+              help='Grade profile. Foundation requires authenticated evidence and batch binding for E2; '
+                   'legacy preserves the ordering used for historical artefacts.')
 def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bool = False,
-               trust_policy=None, tsa_url=None, expected_nonce=None):
+               trust_policy=None, tsa_url=None, expected_nonce=None, profile='foundation'):
     """Verify a WitnessOS evidence bundle.
 
     BUNDLE_PATH: Path to the evidence bundle directory containing
@@ -64,7 +68,7 @@ def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bo
             raise VerifyError('Trust policy must be provisioned outside the evidence bundle')
         policy = TrustPolicy.from_json(trust_policy) if trust_policy else None
         result = verify(bundle_path, alpha_mode=alpha_mode, trust_policy=policy,
-                        tsa_url=tsa_url, expected_nonce=expected_nonce)
+                        tsa_url=tsa_url, expected_nonce=expected_nonce, profile=profile)
     except (VerifyError, ValueError, TypeError, OSError) as e:
         click.echo(f"ERROR: {e}", err=True)
         sys.exit(2)
@@ -75,6 +79,10 @@ def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bo
         output = {
             "valid": result.valid,
             "grade": result.evidence_grade,
+            "profile": result.profile,
+            "grade_cap_reason": result.grade_cap_reason,
+            "requirements_met": list(result.grade.requirements_met) if result.grade else [],
+            "requirements_missing": list(result.grade.requirements_missing) if result.grade else [],
             "events": len(result.events),
             "chain_valid": result.chain_result.valid if result.chain_result else None,
             "ledger_valid": result.ledger_result.sequence_monotonic if result.ledger_result else None,

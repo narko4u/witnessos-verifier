@@ -56,6 +56,7 @@ class GradeResult:
     display: str
     requirements_met: List[str]
     requirements_missing: List[str]
+    cap_reason: str = ""
 
     @property
     def is_e4(self) -> bool:
@@ -84,6 +85,7 @@ def derive_grade(
     require_retention: bool = False,
     require_observer_identity: bool = False,
     observer_identity: Optional[str] = None,
+    profile: str = "foundation",
 ) -> GradeResult:
     """Derive the evidence grade from verification results.
 
@@ -130,6 +132,43 @@ def derive_grade(
         )
     if observer_identity:
         met.append(f"E1: Observer identity established ({observer_identity})")
+
+    # ── Foundation profile ────────────────────────────────────────────────
+    # The Foundation profile refuses to award E2 to a record whose authorship is
+    # not established. A hash chain proves internal linkage, not who produced the
+    # evidence, so authentication and batch binding are checked first and their
+    # failure is reported as the cap reason rather than as one missing checkbox
+    # among many. `profile="legacy"` keeps the historical ordering for artefacts
+    # that predate the profile.
+    if profile == "foundation":
+        if not event_signatures_valid:
+            missing.append(
+                "E2 (Foundation): event signatures missing or invalid"
+            )
+            return GradeResult(
+                grade=Grade.E1,
+                display="E1 — Observed (Foundation: unauthenticated)",
+                requirements_met=met,
+                requirements_missing=missing,
+                cap_reason=(
+                    "Foundation profile: evidence whose event signatures are missing "
+                    "or invalid cannot reach E2"
+                ),
+            )
+        if not batch_binding_valid:
+            missing.append(
+                "E2 (Foundation): events not bound to a signed batch"
+            )
+            return GradeResult(
+                grade=Grade.E1,
+                display="E1 — Observed (Foundation: unbound)",
+                requirements_met=met,
+                requirements_missing=missing,
+                cap_reason=(
+                    "Foundation profile: evidence that is not bound to a signed batch "
+                    "cannot reach E2"
+                ),
+            )
 
     # E2
     e2_ok = True
@@ -243,6 +282,12 @@ def derive_grade(
             display="E3 — Corroborated",
             requirements_met=met,
             requirements_missing=missing,
+            cap_reason=(
+                ""
+                if e4_ok
+                else "E4 requires E3 plus an authenticated anchor: a valid RFC 3161 "
+                "timestamp under the operator trust policy and a valid Merkle proof"
+            ),
         )
 
     return GradeResult(
@@ -250,6 +295,7 @@ def derive_grade(
         display="E2 — Internally validated",
         requirements_met=met,
         requirements_missing=missing,
+        cap_reason="E3 requires E2 plus a satisfied independent corroboration",
     )
 
 @dataclass

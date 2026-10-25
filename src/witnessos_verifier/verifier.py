@@ -84,6 +84,12 @@ class VerifyResult:
     anchor_coverages: List[object] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+    profile: str = "foundation"
+
+    @property
+    def grade_cap_reason(self) -> str:
+        """Why the verdict stopped where it did, in the profile's own words."""
+        return getattr(self.grade, "cap_reason", "") if self.grade else "" 
 
     @property
     def evidence_grade(self) -> str:
@@ -173,7 +179,8 @@ def _restore_provider_records(previous) -> None:
 
 
 def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, tsa_url=None,
-           expected_nonce=None, subject_action_id: Optional[str] = None) -> VerifyResult:
+           expected_nonce=None, subject_action_id: Optional[str] = None,
+           profile: str = "foundation") -> VerifyResult:
     """Verify a WitnessOS evidence bundle.
 
     The bundle must contain:
@@ -392,7 +399,14 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
         worm_result=worm_result,
         alpha_mode=False,
         event_signatures_valid=not signature_errors,
-        batch_binding_valid=manifest_result is not None and not any(not e.startswith("Merkle proof:") for e in binding_errors),
+        batch_binding_valid=(
+            manifest_result is not None
+            and not any(not e.startswith("Merkle proof:") for e in binding_errors)
+            and (
+                profile != "foundation"
+                or not any(e.startswith("Merkle proof:") for e in binding_errors)
+            )
+        ),
         merkle_proof_valid=manifest_result is not None and not any(e.startswith("Merkle proof:") for e in binding_errors),
         observation_external=observation_external(events, key_registry),
         enforcement_observed=enforcement_observed(events, key_registry),
@@ -405,6 +419,7 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
             getattr(trust_policy, "observer_keys", None),
             key_registry,
         ),
+        profile=profile,
     )
 
     # The governed action is the one that proceeded, not every dispatch step that
@@ -430,11 +445,20 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
     if alpha_mode and grade_value == Grade.E4:
         grade_value = Grade.E3
         action_result.requirements_met.append("Alpha: E4 evidence present (capped at E3)")
+    # The profile's own words travel with the verdict. Rebuilding the grade here
+    # would otherwise drop the reason a Foundation gate stopped the ladder, and a
+    # cap without a reason is indistinguishable from a permissive pass.
+    cap_reason = getattr(integrity.grade, "cap_reason", "") or ""
+    if not cap_reason and action_result.requirements_missing:
+        cap_reason = f"capped at {grade_value}: {action_result.requirements_missing[0]}"
+    if not cap_reason and integrity.requirements_missing:
+        cap_reason = f"capped at {grade_value}: {integrity.requirements_missing[0]}"
     grade = GradeResult(
         grade=grade_value,
         display=action_result.display(),
         requirements_met=list(integrity.requirements_met) + list(action_result.requirements_met),
         requirements_missing=list(integrity.requirements_missing) + list(action_result.requirements_missing),
+        cap_reason=cap_reason,
     )
 
     # Collect all errors
@@ -481,4 +505,5 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
         anchor_coverages=coverage_results,
         errors=errors,
         warnings=warnings,
+        profile=profile,
     )
