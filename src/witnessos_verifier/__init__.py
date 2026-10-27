@@ -10,6 +10,6 @@ This package contains NO gateway, credential broker, connector, policy engine,
 or key management code. It is a pure verification client.
 """
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 __all__ = ["verifier", "events", "signatures", "key_registry", "case_chain",
            "ledger", "merkle", "manifest", "timestamp", "worm", "grades", "der"]

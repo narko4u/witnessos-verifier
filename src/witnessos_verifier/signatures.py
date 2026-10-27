@@ -67,7 +67,24 @@ class UnsupportedScheme(Exception):
 
 # Canonical scheme labels, matched case-insensitively. Unknown labels refuse.
 _ED25519_LABELS = {"ed25519"}
-_ML_DSA_65_LABELS = {"ml-dsa-65", "ml_dsa_65", "mldsa65"}
+
+# Every ML-DSA parameter set the engine can register, not only the one that happens to be
+# commonest. The engine signs with 44, 65 or 87 depending on the deployment's key, so a verifier
+# that performed only 65 would refuse a record it is supposed to check, and the refusal would
+# look like a bad signature rather than a gap. FIPS 204 defines all three.
+_ML_DSA_PARAMETER_SETS = {
+    "ml-dsa-44": "MLDSA44PublicKey",
+    "ml-dsa-65": "MLDSA65PublicKey",
+    "ml-dsa-87": "MLDSA87PublicKey",
+}
+_ML_DSA_ALIASES = {
+    "ml_dsa_44": "ml-dsa-44",
+    "mldsa44": "ml-dsa-44",
+    "ml_dsa_65": "ml-dsa-65",
+    "mldsa65": "ml-dsa-65",
+    "ml_dsa_87": "ml-dsa-87",
+    "mldsa87": "ml-dsa-87",
+}
 
 
 def verify_signature(
@@ -95,28 +112,35 @@ def verify_signature(
     key = label.lower()
     if key in _ED25519_LABELS:
         return verify_detached_signature(public_key_hex, message, signature_b64)
-    if key in _ML_DSA_65_LABELS:
-        return _verify_ml_dsa_65(public_key_hex, message, signature_b64)
+    ml_dsa_set = _ML_DSA_ALIASES.get(key, key)
+    if ml_dsa_set in _ML_DSA_PARAMETER_SETS:
+        return _verify_ml_dsa(public_key_hex, message, signature_b64, ml_dsa_set)
     raise UnsupportedScheme(label)
 
 
-def _verify_ml_dsa_65(
+def _verify_ml_dsa(
     public_key_hex: str,
     message: bytes,
     signature_b64: str,
+    parameter_set: str,
 ) -> bool:
-    """ML-DSA-65 verification (FIPS 204).
+    """ML-DSA verification at one FIPS 204 parameter set.
 
-    The post-quantum backend is an optional dependency. When it is absent this
-    raises UnsupportedScheme, so a record declaring a suite is refused rather
-    than quietly accepted as a single-scheme record.
+    The post-quantum backend is an optional dependency. When it is absent this raises
+    UnsupportedScheme, so a record declaring a suite is refused rather than quietly accepted as
+    a single-scheme record. A key whose length does not match the declared set fails to load,
+    which returns False: the signature is not this key's, and the record does not verify.
     """
     try:
         from cryptography.hazmat.primitives.asymmetric import mldsa
     except ImportError as exc:
-        raise UnsupportedScheme("ML-DSA-65: backend not installed") from exc
+        raise UnsupportedScheme(f"{parameter_set.upper()}: backend not installed") from exc
+    class_name = _ML_DSA_PARAMETER_SETS[parameter_set]
+    key_class = getattr(mldsa, class_name, None)
+    if key_class is None:
+        raise UnsupportedScheme(f"{parameter_set.upper()}: backend has no {class_name}")
     try:
-        public_key = mldsa.MLDSA65PublicKey.from_public_bytes(bytes.fromhex(public_key_hex))
+        public_key = key_class.from_public_bytes(bytes.fromhex(public_key_hex))
         public_key.verify(base64.b64decode(signature_b64, validate=True), message)
         return True
     except Exception:

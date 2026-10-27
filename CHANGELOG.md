@@ -1,3 +1,22 @@
+## 1.2.0 (2026-10-27)
+
+Verifies every FIPS 204 parameter set the engine can register. This closes the algorithm-suite
+asymmetry recorded in the estate audit: the engine declares ML-DSA-44, ML-DSA-65 and ML-DSA-87
+and this verifier performed only ML-DSA-65, so a record signed under either other set could not
+be checked by the public trust surface.
+
+The dispatch now maps each parameter set to its own key class. The aliases `ml_dsa_44`,
+`mldsa44` and their 65/87 forms resolve to the same sets. A key whose length does not match the
+declared set fails to load, which returns False, so a wrong-length key reads as a signature that
+did not verify rather than as a missing capability. A backend that ships no implementation for a
+declared set still raises UnsupportedScheme, so nothing is quietly accepted.
+
+Composite suites need no other change: their labels were already split and dispatched, so
+`ed25519+ml-dsa-87` now performs both halves. An unknown scheme still refuses by name.
+
+No verdict changes for Ed25519 or ML-DSA-65 records. No grade or acceptance rule changes. The
+canonical fixtures grade as documented. 331 tests pass, 8 of them new.
+
 # Changelog
 
 ## 1.1.1 (2026-10-27)

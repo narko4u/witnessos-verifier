@@ -85,3 +85,53 @@ def test_an_unperformable_suite_never_falls_back_to_a_pass():
             continue
         with pytest.raises(UnsupportedScheme):
             verify_signature(scheme, "00" * 32, MSG, base64.b64encode(b"x").decode())
+
+
+# --- every parameter set the engine can register ------------------------------
+
+@pytest.mark.parametrize(
+    "declared,key_class",
+    [
+        ("ML-DSA-44", "MLDSA44PrivateKey"),
+        ("ML-DSA-65", "MLDSA65PrivateKey"),
+        ("ML-DSA-87", "MLDSA87PrivateKey"),
+        ("ml_dsa_44", "MLDSA44PrivateKey"),
+        ("mldsa87", "MLDSA87PrivateKey"),
+    ],
+)
+@requires_crypto
+def test_each_ml_dsa_parameter_set_verifies(declared, key_class):
+    """The engine registers 44, 65 or 87 by deployment key, so all three must perform."""
+    private = getattr(mldsa, key_class).generate()
+    raw = _raw(private.public_key())
+    signature = base64.b64encode(private.sign(MSG)).decode()
+
+    assert verify_signature(declared, raw.hex(), MSG, signature) is True
+
+
+@requires_crypto
+def test_a_signature_from_a_different_parameter_set_is_refused_not_unsupported():
+    """Same family, wrong key length: a bad signature, not a missing capability."""
+    private_65 = mldsa.MLDSA65PrivateKey.generate()
+    private_44 = mldsa.MLDSA44PrivateKey.generate()
+    signature = base64.b64encode(private_44.sign(MSG)).decode()
+
+    assert verify_signature("ML-DSA-65", _raw(private_65.public_key()).hex(), MSG, signature) is False
+
+
+@requires_crypto
+def test_a_hybrid_suite_may_declare_any_parameter_set():
+    """The composite path splits labels, so a hybrid half at 44 or 87 dispatches the same way."""
+    classical = ed25519.Ed25519PrivateKey.generate()
+    pq = mldsa.MLDSA87PrivateKey.generate()
+    ed_sig = base64.b64encode(classical.sign(MSG)).decode()
+    pq_sig = base64.b64encode(pq.sign(MSG)).decode()
+
+    assert verify_signature("ed25519", _raw(classical.public_key()).hex(), MSG, ed_sig) is True
+    assert verify_signature("ml-dsa-87", _raw(pq.public_key()).hex(), MSG, pq_sig) is True
+
+
+@requires_crypto
+def test_an_unknown_scheme_still_refuses_by_name():
+    with pytest.raises(UnsupportedScheme):
+        verify_signature("ml-dsa-99", "00", MSG, "AA==")
