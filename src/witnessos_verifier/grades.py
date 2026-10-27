@@ -50,6 +50,17 @@ class Grade:
     E4 = "E4"
 
 
+#: What the case-level appraisal says when it was handed no corroboration.
+#:
+#: `derive_grade` deliberately takes `corroboration=None` inside the verifier,
+#: because corroboration is judged per action by `derive_action_grades`. That
+#: makes this line true of the case-level call and false of a verdict that
+#: awarded E3 or E4 from a satisfied per-action appraisal, so the merge in
+#: `verifier.verify` removes exactly this string when an action reached E3. One
+#: constant means the text cannot drift apart from the filter.
+CORROBORATION_NOT_APPRAISED = "E3: no corroboration was appraised"
+
+
 @dataclass
 class GradeResult:
     grade: str
@@ -216,12 +227,10 @@ def derive_grade(
         met.append(f"E3: {corroboration.summary()}")
         grade = Grade.E3
     else:
-        detail = (
-            corroboration.summary()
-            if corroboration is not None
-            else "no corroboration was appraised"
-        )
-        missing.append(f"E3: {detail}")
+        if corroboration is None:
+            missing.append(CORROBORATION_NOT_APPRAISED)
+        else:
+            missing.append(f"E3: {corroboration.summary()}")
 
     # E4
     e4_ok = merkle_proof_valid

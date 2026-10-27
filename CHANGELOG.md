@@ -1,5 +1,60 @@
 # Changelog
 
+## 1.1.1 (2026-10-27)
+
+A reporting correction. No grade, no validity verdict and no acceptance rule changed.
+What changed is that a verdict can no longer contradict itself.
+
+### Fixed
+
+- **A verdict no longer reports a requirement that denies the grade it carries.**
+  1.1.0 published E4 verdicts with eleven requirements met plus `E3: no corroboration
+  was appraised` in `requirements_missing`. The cause is not the appraisal but the
+  merge. The case-level appraisal is deliberately run with `corroboration=None`
+  because corroboration is judged per action. Its missing list therefore says no
+  corroboration was appraised even on a record whose action reached E4 from a
+  satisfied appraisal. Both lists were concatenated so the resulting line travelled
+  beside a grade it denies. The merge now drops exactly that line once a per-action
+  appraisal has reached E3 or E4. An E2 verdict keeps it, because there it is the
+  finding rather than a contradiction.
+- **The 1.1.0 sources are on the default branch.** `main` was seven commits behind
+  the released tag, so a reader of the default branch saw `0.3.5` while
+  `pip install witnessos-verifier` shipped 1.1.0. `main` is fast-forwarded to the
+  1.1.0 commit so source, tag and wheel now name the same code.
+
+### Added
+
+- `test_canonical_grades.py` guards the property rather than the string. No E3 or E4
+  verdict may carry the case-level "no corroboration was appraised" line. An E2
+  verdict must still carry it. The second half is the point. A filter that silenced
+  the line everywhere would hide the finding it exists to report.
+
+### Release
+
+- Wheel and source tarball, `SHA256SUMS`, detached signatures plus a CycloneDX SBOM
+  built and signed keylessly by the release workflow from the tag ref.
+- Canonical E2/E3/E4 qualification re-run from the released tree. `canonical-e2`
+  returns E2, `canonical-e3` returns E3, `canonical-e4` returns E4, each exit 0 for
+  E4 and exit 1 for the two capped grades as documented.
+
+## 1.1.0 (2026-10-25)
+
+The Foundation profile release. It shipped with no changelog entry. That gap is
+recorded here rather than left between 1.0.0 and 1.1.1.
+
+### Added
+
+- Foundation profile requires authenticated, batch-bound evidence.
+- E3 independence via pinned JWKS plus E1 identity binding.
+- AWS SNS as a provider route that signs the binding object.
+- Independent ordering and v2 binding checks.
+- Corroboration must be substantiated. A capped grade must name the rung that
+  stopped it.
+
+### Changed
+
+- Key trust is judged at signing time, not at verification time.
+
 ## 1.0.0 (2026-10-25)
 
 The Foundation release. The grade semantics did not change from 0.3.x; what changed is

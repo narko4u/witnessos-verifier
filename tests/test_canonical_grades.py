@@ -85,3 +85,36 @@ def test_legacy_provider_confirmed_chain_cannot_self_promote_to_e3_or_e4():
     assert result.evidence_grade in ("E0", "E1", "E2"), result.grade.display
     assert not result.corroboration.satisfied
     assert "E4" not in result.grade.requirements_met
+
+
+def test_an_awarded_grade_never_contradicts_its_own_requirements():
+    """A verdict may not deny the rung it just awarded.
+
+    The case-level appraisal always runs without corroboration, because the
+    per-action appraisal is where corroboration is judged. Its missing list
+    therefore says "no corroboration was appraised" even on a record whose action
+    reached E3 or E4 from a satisfied appraisal. Carried into the verdict, that
+    line contradicts the grade beside it: v1.1.0 published E4 with eleven
+    requirements met and an E3 requirement reported missing.
+    """
+    for name, expected in (("canonical-e3", "E3"), ("canonical-e4", "E4")):
+        result = verify(bundle(name), trust_policy=policy(name), tsa_url=TSA)
+        assert result.evidence_grade == expected, (name, result.grade.display)
+        assert result.corroboration.satisfied, name
+        missing = " ".join(result.grade.requirements_missing).lower()
+        assert "no corroboration was appraised" not in missing, (
+            name, result.grade.requirements_missing)
+
+
+def test_an_e2_verdict_still_names_the_missing_corroboration():
+    """The fix must not silence the line where it is the whole point.
+
+    A record with no satisfied corroboration is E2, and the verdict has to say
+    that no corroboration was appraised rather than leaving the reader to infer
+    it from a quiet requirements list.
+    """
+    result = verify(bundle("canonical-e2"), trust_policy=policy("canonical-e2"), tsa_url=TSA)
+    assert result.evidence_grade == "E2", result.grade.display
+    assert not result.corroboration.satisfied
+    assert "no corroboration was appraised" in " ".join(
+        result.grade.requirements_missing).lower()

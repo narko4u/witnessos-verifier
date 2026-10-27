@@ -27,7 +27,13 @@ from . import provider_attestation as pa
 from .corroboration import CorroborationResult, assess_actions, assess_corroboration
 from .events import load_events, Event, EventError
 from .evidence_semantics import enforcement_observed, observation_external, observer_identity
-from .grades import derive_action_grades, derive_grade, Grade, GradeResult
+from .grades import (
+    CORROBORATION_NOT_APPRAISED,
+    derive_action_grades,
+    derive_grade,
+    Grade,
+    GradeResult,
+)
 from .key_registry import KeyRegistry, KeyRegistryError
 from .ledger import verify_ledger_sequence, LedgerResult
 from .manifest import BatchManifest, verify_manifest, ManifestResult
@@ -518,6 +524,19 @@ def verify(bundle_path: Path, alpha_mode: bool = False, *, trust_policy=None, ts
     # record). Rung-filter both the reason and the missing list.
     combined_met = list(integrity.requirements_met) + list(action_result.requirements_met)
     combined_missing = list(integrity.requirements_missing) + list(action_result.requirements_missing)
+    # The case-level appraisal is run without corroboration on purpose: the
+    # per-action appraisal is where corroboration is judged. So its "no
+    # corroboration was appraised" line is a fact about that call, not about the
+    # verdict, and on a record whose action reached E3 or E4 it denies the grade
+    # it travels with (v1.1.0 published E4 with this line reported missing). Drop
+    # exactly that line once a per-action appraisal has established the rung. An
+    # E2 verdict keeps it, because there it is the finding.
+    if any(grade in (Grade.E3, Grade.E4)
+           for grade in action_result.action_grades.values()):
+        combined_missing = [
+            item for item in combined_missing
+            if item != CORROBORATION_NOT_APPRAISED
+        ]
     awarded_rung = _rung_of(str(grade_value))
     met_rungs = {_rung_of(item) for item in combined_met}
     stale = {
