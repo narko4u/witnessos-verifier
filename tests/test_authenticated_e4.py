@@ -306,12 +306,16 @@ def test_e4_json_cli_and_alpha(controlled_e4, tmp_path):
     runner = CliRunner()
     args = ['verify', str(p), '--trust-policy', str(config), '--tsa-url', TSA, '--json']
     r = runner.invoke(main, args)
-    assert r.exit_code == 0, r.output
+    # This record is sound at E2 but never reaches E3: the corroboration was not
+    # satisfied. Fail-closed default exits 1, and --report-only is the opt-in for
+    # the tolerant reading.
+    assert r.exit_code == 1, r.output
+    assert runner.invoke(main, [*args, '--report-only']).exit_code == 0
     obj = json.loads(r.output)
     assert obj['grade'] == 'E2' and obj['timestamp_signature_verified'] and obj['retention_verified']
     assert obj['corroboration_present'] is True and obj['corroboration_satisfied'] is False
     assert obj['corroboration_reasons']
-    alpha = runner.invoke(main, [*args, '--alpha'])
+    alpha = runner.invoke(main, [*args, '--alpha', '--report-only'])
     assert alpha.exit_code == 0 and json.loads(alpha.output)['grade'] == 'E2'
     inside = p/'policy.json'; shutil.copy(config, inside)
     denied = runner.invoke(main, ['verify', str(p), '--trust-policy', str(inside)])

@@ -50,12 +50,17 @@ def main():
 @click.option('--trust-policy', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='Operator policy outside the bundle')
 @click.option('--tsa-url', help='Expected TSA URL from operator configuration')
 @click.option('--expected-nonce', type=int, help='Nonce retained from the original timestamp request')
+@click.option('--require-grade', type=click.Choice(['E0', 'E1', 'E2', 'E3', 'E4']), default=None,
+              help='Exit 1 unless the record reaches at least this grade.')
+@click.option('--report-only', is_flag=True,
+              help='Report the verdict without failing on unmet requirements (exit follows bundle validity alone).')
 @click.option('--profile', type=click.Choice(['foundation', 'legacy']), default='foundation',
               show_default=True,
               help='Grade profile. Foundation requires authenticated evidence and batch binding for E2; '
                    'legacy preserves the ordering used for historical artefacts.')
 def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bool = False,
-               trust_policy=None, tsa_url=None, expected_nonce=None, profile='foundation'):
+               trust_policy=None, tsa_url=None, expected_nonce=None, profile='foundation',
+               require_grade=None, report_only=False):
     """Verify a WitnessOS evidence bundle.
 
     BUNDLE_PATH: Path to the evidence bundle directory containing
@@ -122,6 +127,7 @@ def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bo
             "timestamp_trust_verified": result.timestamp_result.trust_verified if result.timestamp_result else False,
             "retention_verified": result.worm_result.retention_verified if result.worm_result else False,
             "worm_valid": result.worm_result.valid if result.worm_result else None,
+            "required_grade": require_grade,
             "errors": result.errors,
             "warnings": result.warnings,
         }
@@ -150,8 +156,22 @@ def verify_cmd(bundle_path: Path, output_json: bool, quiet: bool, alpha_mode: bo
                 for req in result.grade.requirements_missing:
                     click.echo(f"  ✗ {req}")
 
-    # Exit code: 0 if valid, 1 if invalid
-    sys.exit(0 if result.valid else 1)
+    # Exit code. Bundle validity is the floor: damaged evidence always fails.
+    # Above that, an unmet requirement is a failure unless the caller asked for a
+    # report only, because "the record did not reach the rung it needs" is not a
+    # success an automated reader can act on. `--require-grade` lets a caller state
+    # the rung they need instead of accepting the derived one.
+    rank = {"E0": 0, "E1": 1, "E2": 2, "E3": 3, "E4": 4}
+    missing = list(getattr(result.grade, "requirements_missing", []) or []) if result.grade else []
+    if not result.valid:
+        code = 1
+    elif report_only:
+        code = 0
+    elif require_grade:
+        code = 0 if rank.get(result.evidence_grade, 0) >= rank[require_grade] else 1
+    else:
+        code = 0 if not missing else 1
+    sys.exit(code)
 
 
 @main.command(name="verify-engine")

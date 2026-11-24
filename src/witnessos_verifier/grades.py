@@ -405,6 +405,7 @@ def derive_action_grades(
                 f"covered by {covering[0].record.checkpoint_id} "
                 f"(seq {covering[0].record.first_seq}-{covering[0].record.last_seq})"
             )
+            result.requirements_met.append(f"E3: {event.event_id} corroborated")
             result.requirements_met.append(
                 f"E4: {event.event_id} covered by {covering[0].record.checkpoint_id}"
             )
