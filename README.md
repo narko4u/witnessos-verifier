@@ -22,7 +22,7 @@ E3 is an appraisal, not an event type. The verifier reads the acknowledgement's 
 
 The anchor is the cryptography: the signature, the RFC 3161 timestamp and the Merkle inclusion proof, verified directly by the parties to the record. A signed retention receipt from a custodian you trust is recorded and reported as an attribute of the bundle. It is made a requirement only where your policy sets `require_retention`, and even then it changes the receipt's custody verdict rather than its evidence grade. A matching local WORM checksum is not immutability evidence.
 
-The CLI returns exit 1 when supplied evidence fails or cannot be verified. A lower grade may describe checks that passed; it does not override an invalid bundle result.
+The CLI returns exit 1 when supplied evidence fails, when a requirement the ladder needs is unmet, or when the record does not reach a grade you asked for. Two options make that contract explicit: `--require-grade E3` fails below E3, and `--report-only` ties the exit code to bundle validity alone for readers who want the verdict without the gate. A JSON verdict carries `requirements_met`, `requirements_missing` and `required_grade`, so a caller can act on the reason rather than on the number. A lower grade may describe checks that passed; it never turns damaged evidence into success.
 
 ## Installation
 

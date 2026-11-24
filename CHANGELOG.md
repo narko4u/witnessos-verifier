@@ -1,3 +1,35 @@
+## 1.2.1 (2026-11-24)
+
+Exit status now means what the README already said it meant. A record that does not reach the
+rung its own ladder needs no longer reports success to an automated caller.
+
+### Fixed
+
+- **Unmet requirements exit 1.** The verifier exited `0` whenever the bundle was internally
+  consistent, even when requirements were listed as unmet. Two fixtures exposed it: the legacy
+  `e4-gmail-approved-send` under its two-party policy printed `TSA: FAIL`, `Grade: E2` and exited
+  0, and `canonical-e4` with the provider key removed printed two unmet E3 requirements and an
+  unmet E4 requirement and also exited 0. Damaged evidence already failed; sound evidence that
+  never reached its own rung did not. It does now.
+- **The two unprovisioned-input paths agree.** `canonical-e2`, which lacks the fixture CA, exited 1
+  while a bundle lacking only its provider key exited 0. Both are the same situation: the record is
+  sound and the operator did not provision an input. Both now exit 1 by default.
+- **A satisfied E3 is listed.** An action that reached E4 by anchor coverage reported only the E4
+  line, so the printed ladder ran E2 then E4 with no E3 entry. The corroboration line is emitted.
+
+### Added
+
+- `--require-grade E0..E4`: fail unless the record reaches the requested grade, for callers who
+  know the rung they need.
+- `--report-only`: keep the tolerant reading, where the exit code tracks bundle validity alone.
+- The JSON verdict carries `requirements_met`, `requirements_missing` and `required_grade`.
+
+### Compatibility
+
+This is a behaviour change for scripts that relied on exit 0 from a record with unmet
+requirements. Pass `--report-only` to restore that reading. No grade, no signature verdict and no
+acceptance rule changed: 337 tests pass, 6 of them new in `tests/test_cli_exit_codes.py`.
+
 ## 1.2.0 (2026-10-27)
 
 Verifies every FIPS 204 parameter set the engine can register. This closes the algorithm-suite
